@@ -6,9 +6,9 @@
 local scripts = {
     {
         name = "飞行脚本",
-        url = "你的飞行脚本链接",
-        desc = "让角色在空中自由飞行，支持速度调节。",
-        author = "小唐",
+        url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/fly_Script",
+        desc = "经典飞行脚本（部分服务器存在拉回）",
+        author = "未知",
         game = "通用"
     }
 }
