@@ -1,19 +1,18 @@
--- Roblox Delta Script Hub 左右分栏版
--- 作者：Copilot
--- 功能：左右分栏（左功能按钮 / 右信息区）+ 标题栏拖动（鼠标 & 触屏）+ 最小化 + 关闭
--- ⚠ 请确保脚本来源安全
+-- Roblox Delta Script Hub 动态信息栏版
+-- 作者：小唐 & Copilot
+-- 功能：左边功能按钮 + 右边动态信息栏 + 标题栏拖动 + 最小化 + 关闭
 
--- ====== 配置区 ======
-local scripts = {
-    {name = "脚本", url = "你的脚本链接"},
-    {name = "脚本", url = "你的脚本链接"},
-    {name = "脚本", url = "你的脚本链接"},
-    {name = "脚本", url = "你的脚本链接"},
-    {name = "脚本", url = "你的脚本链接"},
-    {name = "脚本", url = "你的脚本链接"},
-    {name = "脚本", url = "你的脚本链接"},
-}
--- ====================
+-- ====== 配置区（示例格式，仅当有新变化时才显示）======
+-- local scripts = {
+--     {
+--         name = "脚本名称",
+--         url = "脚本链接",
+--         desc = "脚本简介",
+--         author = "作者名",
+--         game = "适用游戏"
+--     }
+-- }
+-- ===============================================
 
 -- 安全挂载到 UI 容器
 local parentGui = game:GetService("CoreGui")
@@ -30,9 +29,7 @@ ScreenGui.Parent = parentGui
 ScreenGui.ResetOnSpawn = false
 
 -- 主窗口
-local Frame = Instance.new("Frame")
-Frame.Name = "MainWindow"
-Frame.Parent = ScreenGui
+local Frame = Instance.new("Frame", ScreenGui)
 Frame.Size = UDim2.new(0, 500, 0, 350)
 Frame.Position = UDim2.new(0.1, 0, 0.2, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -80,7 +77,7 @@ MinBtn.Font = Enum.Font.GothamBold
 MinBtn.TextSize = 16
 Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
 
--- 内容区（左右分栏）
+-- 内容区
 local Content = Instance.new("Frame", Frame)
 Content.Size = UDim2.new(1, -10, 1, -46)
 Content.Position = UDim2.new(0, 5, 0, 40)
@@ -103,7 +100,7 @@ RightPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 RightPanel.BorderSizePixel = 0
 
 local InfoLabel = Instance.new("TextLabel", RightPanel)
-InfoLabel.Size = UDim2.new(1, -10, 1, -10)
+InfoLabel.Size = UDim2.new(1, -10, 0.7, -10)
 InfoLabel.Position = UDim2.new(0, 5, 0, 5)
 InfoLabel.BackgroundTransparency = 1
 InfoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -112,14 +109,18 @@ InfoLabel.TextSize = 14
 InfoLabel.TextWrapped = true
 InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
 InfoLabel.TextYAlignment = Enum.TextYAlignment.Top
-InfoLabel.Text = [[
-欢迎来到 Delta Script Hub！
-左边是功能按钮，点击即可执行脚本。
-右边显示脚本中心的说明、提示和作者信息。
+InfoLabel.Text = "请选择左侧的脚本查看详情"
 
-作者：小唐
-版本：分栏布局 v1.0
-]]
+local RunBtn = Instance.new("TextButton", RightPanel)
+RunBtn.Size = UDim2.new(1, -10, 0, 35)
+RunBtn.Position = UDim2.new(0, 5, 1, -40)
+RunBtn.Text = "运行脚本"
+RunBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+RunBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RunBtn.Font = Enum.Font.GothamBold
+RunBtn.TextSize = 16
+Instance.new("UICorner", RunBtn).CornerRadius = UDim.new(0, 6)
+RunBtn.Visible = false
 
 -- 生成功能按钮
 for _, s in ipairs(scripts) do
@@ -129,7 +130,14 @@ for _, s in ipairs(scripts) do
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Text = s.name
     btn.MouseButton1Click:Connect(function()
-        loadstring(game:HttpGet(s.url))()
+        InfoLabel.Text = string.format(
+            "名称：%s\n作者：%s\n适用游戏：%s\n\n简介：%s",
+            s.name, s.author, s.game, s.desc
+        )
+        RunBtn.Visible = true
+        RunBtn.MouseButton1Click:Connect(function()
+            loadstring(game:HttpGet(s.url))()
+        end)
     end)
 end
 LeftPanel.CanvasSize = UDim2.new(0, 0, 0, #scripts * 35)
