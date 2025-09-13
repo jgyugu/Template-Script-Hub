@@ -9,9 +9,8 @@ local scripts = {
 }
 
 local introText = [[
-欢迎来到 Delta Script Hub！
-这里收集了你常用的 Roblox 脚本，点击左侧按钮即可查看详情并运行。
-第一个按钮是本介绍，方便随时查看。
+欢迎来到 ethan脚本中心！
+这里收集了常用的脚本，点击左侧按钮即可查看详情并运行!
 ]]
 
 local parentGui = game:GetService("CoreGui")
