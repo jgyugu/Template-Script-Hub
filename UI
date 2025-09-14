@@ -642,83 +642,64 @@ function OrionLib:MakeWindow(WindowConfig)
     AddConnection(CloseBtn.MouseButton1Up, function()
         MainWindow.Visible = false
         UIHidden = true
+        -- ===== 创建悬浮按钮（初始隐藏在右下角，可拖动） =====
+        local reopenBtn = Instance.new("ImageButton")
+        reopenBtn.Name = "ReopenButton_" .. MainWindow.Name -- 确保唯一
+        reopenBtn.Size = UDim2.new(0, 50, 0, 50)
+        reopenBtn.Position = UDim2.new(1, -60, 1, -60) -- 默认右下角
+        reopenBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        reopenBtn.Image = "rbxassetid://7072719338" -- 图标ID，可换
+        reopenBtn.Parent = MainWindow.Parent -- 挂在同级，避免被隐藏
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(1, 0)
+        corner.Parent = reopenBtn
+
+        -- 拖动逻辑
+        local dragging, dragStart, startPos
+        reopenBtn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                dragStart = input.Position
+                startPos = reopenBtn.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+        reopenBtn.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+                local delta = input.Position - dragStart
+                reopenBtn.Position = UDim2.new(
+                    startPos.X.Scale, startPos.X.Offset + delta.X,
+                    startPos.Y.Scale, startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+
+        -- 点击按钮重新打开窗口
+        reopenBtn.MouseButton1Click:Connect(function()
+            MainWindow.Visible = true
+            reopenBtn:Destroy()
+        end)
+        -- ==============================================
         OrionLib:MakeNotification({
             Name = "界面隐藏",
-            Content = "点击小按钮重新打开界面",
+            Content = "点击右Shift重新打开界面",
             Time = 5
         })
 
         local Sound = Instance.new("Sound")
-        Sound.SoundId = "rbxassetid://4590662766"
-        Sound.Parent = game:GetService("SoundService")
-        Sound.Volume = 5
-        Sound:Play()
-        Sound.Ended:Wait()
-        Sound:Destroy()
+            Sound.SoundId = "rbxassetid://4590662766"
+            Sound.Parent = game:GetService("SoundService")
+            Sound.Volume = 5
+            Sound:Play()
+            Sound.Ended:Wait()
+            Sound:Destroy()
 
         WindowConfig.CloseCallback()
-
-        -- 创建或显示可拖动的小按钮
-        if not OrionLib.ReopenButton then
-            OrionLib.ReopenButton = Create("TextButton", {
-                Name = "ReopenButton",
-                Size = OrionLib.ReopenButtonSize,
-                Position = OrionLib.ReopenButtonPosition,
-                BackgroundColor3 = OrionLib.Themes[OrionLib.SelectedTheme].Main,
-                BorderSizePixel = 0,
-                AutoButtonColor = false,
-                Text = "",
-            }, {
-                -- 添加一个图标或图像，例如使用 ImageLabel
-                Create("ImageLabel", {
-                    Name = "Icon",
-                    Image = "rbxassetid://4590662766", -- 替换为你想要的图标
-                    Size = UDim2.new(0.5, 0, 0.5, 0),
-                    Position = UDim2.new(0.25, 0, 0.25, 0),
-                    BackgroundTransparency = 1,
-                })
-            })
-
-            OrionLib.ReopenButton.Parent = Orion
-
-            -- 使小按钮可拖动
-            local dragging = false
-            local dragStart, startPos
-
-            OrionLib.ReopenButton.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = true
-                    dragStart = input.Position
-                    startPos = OrionLib.ReopenButton.Position
-
-                    input.Changed:Connect(function()
-                        if input.UserInputState == Enum.UserInputState.End then
-                            dragging = false
-                        end
-                    end)
-                end
-            end)
-
-            UserInputService.InputChanged:Connect(function(input)
-                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                    local delta = input.Position - dragStart
-                    OrionLib.ReopenButton.Position = UDim2.new(
-                        startPos.X.Scale,
-                        startPos.X.Offset + delta.X,
-                        startPos.Y.Scale,
-                        startPos.Y.Offset + delta.Y
-                    )
-                end
-            end)
-
-            -- 点击小按钮时重新打开主窗口
-            OrionLib.ReopenButton.MouseButton1Click:Connect(function()
-                MainWindow.Visible = true
-                OrionLib.ReopenButton:Destroy()
-                OrionLib.ReopenButton = nil
-                UIHidden = false
-            end)
-        end
     end)
 
     AddConnection(UserInputService.InputBegan, function(Input)
