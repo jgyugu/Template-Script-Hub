@@ -12,24 +12,37 @@ for _, uid in ipairs(uidBlacklist) do
 end
 -- ========================
 
--- ===== 配置区（远程获取） =====
-local HttpService = game:GetService("HttpService")
+-- ===== 从云端获取 scripts 列表 =====
 local scriptsURL = "https://raw.githubusercontent.com/你的用户名/你的仓库/main/scripts.json"
 
 local scripts = {}
 local success, result = pcall(function()
-    return HttpService:JSONDecode(game:HttpGet(scriptsURL))
+    return game:GetService("HttpService"):JSONDecode(game:HttpGet(scriptsURL))
 end)
 
 if success and type(result) == "table" then
     scripts = result
 else
-    warn("无法获取远程 scripts 配置")
-    CommonTab:AddParagraph("警告", "云端获取脚本失败!")
-    -- 直接返回，不加载任何脚本按钮
-    return
+    warn("无法获取云端 scripts.json")
+    CommonTab:AddParagraph("警告", "云端获取脚本失败")
+    return -- 不加载任何脚本按钮
 end
--- =================
+
+-- ===== 生成脚本按钮 =====
+for _, s in ipairs(scripts) do
+    CommonTab:AddButton({
+        Name = s.name .. " | 作者: " .. (s.author or "未知") .. " | 游戏: " .. (s.game or "通用"),
+        Callback = function()
+            OrionLib:MakeNotification({
+                Name = "运行脚本",
+                Content = s.name,
+                Image = "rbxassetid://4483345998",
+                Time = 3
+            })
+            loadstring(game:HttpGet(s.url))()
+        end
+    })
+end
 
 -- 加载改版 ChinaQY UI
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/ChinaQY/-/Main/UI"))()
