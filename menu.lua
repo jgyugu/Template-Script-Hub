@@ -54,7 +54,7 @@ for _, uid in ipairs(uidBlacklist) do
     end
 end
 -- ===== 加载 UI 库 =====
-local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/ChinaQY/-/Main/UI"))()
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/UI"))()
 
 -- ===== 创建窗口（动态版本号） =====
 local Window = OrionLib:MakeWindow({
