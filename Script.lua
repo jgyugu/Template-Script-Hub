@@ -13,7 +13,7 @@ end
 -- ========================
 
 -- ===== 从云端获取 scripts 列表 =====
-local scriptsURL = "https://raw.githubusercontent.com/你的用户名/你的仓库/main/scripts.json"
+local scriptsURL = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/scripts.json"
 
 local scripts = {}
 local success, result = pcall(function()
