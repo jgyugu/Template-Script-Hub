@@ -19,6 +19,12 @@ local scripts = {
         url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/fly_Script",
         author = "未知",
         game = "通用"
+    },
+        {
+        name = "飞车脚本",
+        url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/Vehicle_Fly_Script",
+        author = "未知",
+        game = "通用"
     }
 }
 -- =================
