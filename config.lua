@@ -7,8 +7,7 @@ return {
     ]],
     key = "666-ethan-yyds", -- 卡密
     blacklist = {           -- 黑名单 UID 列表
-        12345678,
-        87654321
+        
     },
     scriptHubURL = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/menu.lua" -- 脚本中心主入口
 }
