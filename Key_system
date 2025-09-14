@@ -1,8 +1,8 @@
 -- 防止重复运行（带通知+提示音）
-if getgenv().EthanHubLoaded then
+if getgenv().EthanHubLoaded or getgenv().KeySystemLoaded then
     game.StarterGui:SetCore("SendNotification", {
         Title = "Ethan 脚本中心",
-        Text = "脚本中心已加载，无需重复运行！",
+        Text = "脚本中心或卡密系统已加载，无需重复运行！",
         Duration = 5
     })
     local Sound = Instance.new("Sound")
@@ -13,6 +13,7 @@ if getgenv().EthanHubLoaded then
     Sound:Destroy()
     return
 end
+getgenv().KeySystemLoaded = true -- 标记卡密系统已打开
 
 -- ===== 从云端获取 config.lua（带重试机制） =====
 local config
@@ -41,6 +42,7 @@ if not success then
         Text = "无法获取配置，请检查你的网络连接！",
         Duration = 5
     })
+    getgenv().KeySystemLoaded = false -- 获取失败时重置标记
     return
 end
 
@@ -110,7 +112,7 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
--- 关闭按钮
+-- 关闭按钮（关闭时重置标记）
 local CloseBtn = Instance.new("TextButton", Frame)
 CloseBtn.Size = UDim2.new(0, 28, 0, 28)
 CloseBtn.Position = UDim2.new(1, -34, 0, 6)
@@ -122,6 +124,7 @@ CloseBtn.TextSize = 16
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
 CloseBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
+    getgenv().KeySystemLoaded = false -- 关闭时重置标记
 end)
 
 -- 输入框
@@ -158,12 +161,19 @@ ConfirmBtn.Font = Enum.Font.GothamBold
 ConfirmBtn.TextSize = 16
 Instance.new("UICorner", ConfirmBtn).CornerRadius = UDim.new(0, 6)
 
--- 验证逻辑
+-- 验证逻辑（成功时直接销毁按钮和输入框 + 重置标记）
 local function verifyAndLoad()
     if KeyBox.Text == correctKey then
         getgenv().EthanHubLoaded = true
+        getgenv().KeySystemLoaded = false -- 重置标记
+
+        -- 直接销毁按钮和输入框
+        ConfirmBtn:Destroy()
+        KeyBox:Destroy()
+
         StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
         StatusLabel.Text = "验证成功！正在加载..."
+
         task.wait(1)
         ScreenGui:Destroy()
         loadstring(game:HttpGet(scriptHubURL))()
