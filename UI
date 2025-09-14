@@ -642,26 +642,39 @@ function OrionLib:MakeWindow(WindowConfig)
     AddConnection(CloseBtn.MouseButton1Up, function()
         MainWindow.Visible = false
         UIHidden = true
-        -- ===== 创建悬浮按钮（初始隐藏在右下角，可拖动） =====
+    
+        -- ===== 创建悬浮按钮（右上角，可拖动，PC+手机） =====
         local reopenBtn = Instance.new("ImageButton")
-        reopenBtn.Name = "ReopenButton_" .. MainWindow.Name -- 确保唯一
+        reopenBtn.Name = "ReopenButton_" .. MainWindow.Name
         reopenBtn.Size = UDim2.new(0, 50, 0, 50)
-        reopenBtn.Position = UDim2.new(1, -60, 1, -60) -- 默认右下角
+        reopenBtn.Position = UDim2.new(1, -60, 0, 10) -- 右上角
         reopenBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         reopenBtn.Image = "rbxassetid://7072719338" -- 图标ID，可换
-        reopenBtn.Parent = MainWindow.Parent -- 挂在同级，避免被隐藏
-
+        reopenBtn.Parent = MainWindow.Parent
+    
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(1, 0)
         corner.Parent = reopenBtn
-
-        -- 拖动逻辑
-        local dragging, dragStart, startPos
+    
+        -- 拖动逻辑（支持鼠标和触屏）
+        local UserInputService = game:GetService("UserInputService")
+        local dragging, dragStart, startPos, dragInput
+    
+        local function update(input)
+            local delta = input.Position - dragStart
+            reopenBtn.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    
         reopenBtn.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if input.UserInputType == Enum.UserInputType.MouseButton1 
+            or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = input.Position
                 startPos = reopenBtn.Position
+    
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
@@ -669,36 +682,41 @@ function OrionLib:MakeWindow(WindowConfig)
                 end)
             end
         end)
+    
         reopenBtn.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-                local delta = input.Position - dragStart
-                reopenBtn.Position = UDim2.new(
-                    startPos.X.Scale, startPos.X.Offset + delta.X,
-                    startPos.Y.Scale, startPos.Y.Offset + delta.Y
-                )
+            if input.UserInputType == Enum.UserInputType.MouseMovement 
+            or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
             end
         end)
-
+    
+        UserInputService.InputChanged:Connect(function(input)
+            if input == dragInput and dragging then
+                update(input)
+            end
+        end)
+    
         -- 点击按钮重新打开窗口
         reopenBtn.MouseButton1Click:Connect(function()
             MainWindow.Visible = true
             reopenBtn:Destroy()
         end)
         -- ==============================================
+    
         OrionLib:MakeNotification({
             Name = "界面隐藏",
-            Content = "点击右Shift重新打开界面",
+            Content = "点击右上角按钮或按右Shift重新打开界面",
             Time = 5
         })
-
+    
         local Sound = Instance.new("Sound")
-            Sound.SoundId = "rbxassetid://4590662766"
-            Sound.Parent = game:GetService("SoundService")
-            Sound.Volume = 5
-            Sound:Play()
-            Sound.Ended:Wait()
-            Sound:Destroy()
-
+        Sound.SoundId = "rbxassetid://4590662766"
+        Sound.Parent = game:GetService("SoundService")
+        Sound.Volume = 5
+        Sound:Play()
+        Sound.Ended:Wait()
+        Sound:Destroy()
+    
         WindowConfig.CloseCallback()
     end)
 
