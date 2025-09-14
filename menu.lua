@@ -1,21 +1,58 @@
--- ===== 黑名单（UID） =====
-local uidBlacklist = {}
+-- ===== 云端获取 config.lua（带重试机制，失败则销毁 UI） =====
+local config
+local maxRetries = 3
+local success = false
+
+for attempt = 1, maxRetries do
+    local ok, result = pcall(function()
+        return loadstring(game:HttpGet(
+            "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/config.lua"
+        ))()
+    end)
+
+    if ok and type(result) == "table" then
+        config = result
+        success = true
+        break
+    else
+        warn(string.format("[EthanHub] 获取配置失败（第 %d 次），正在重试...", attempt))
+        task.wait(1) -- 等待 1 秒再重试
+    end
+end
+
+if not success then
+    -- 提示用户
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "Ethan 脚本中心",
+        Text = "无法获取配置，请检查你的网络连接！",
+        Duration = 5
+    })
+
+    -- 如果 UI 已经存在则销毁
+    local coreGui = game:GetService("CoreGui")
+    local oldUI = coreGui:FindFirstChild("Orion") -- OrionLib 默认 UI 名
+    if oldUI then
+        oldUI:Destroy()
+    end
+
+    return -- 停止脚本
+end
+
+-- ===== 读取配置 =====
+local version = config.version or "v1.0"
+local announcement = config.announcement or "公告获取失败"
+local correctKey = config.key or "default-key"
+local uidBlacklist = config.blacklist or {}
+
+-- ===== 黑名单检测 =====
 local Players = game:GetService("Players")
 local lp = Players.LocalPlayer
-
 for _, uid in ipairs(uidBlacklist) do
     if lp.UserId == uid then
         lp:Kick("你已被禁止使用此脚本!")
         return
     end
 end
--- ========================
-
--- ===== 云端获取 config.lua（版本号 + 公告） =====
-local config = loadstring(game:HttpGet("https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/config.lua"))()
-local version = config.version or "v1.0"
-local announcement = config.announcement or "公告获取失败"
-
 -- ===== 加载 UI 库 =====
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/ChinaQY/-/Main/UI"))()
 
