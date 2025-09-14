@@ -45,7 +45,18 @@ local AboutTab = Window:MakeTab({
 })
 AboutTab:AddSection({ Name = "脚本中心" })
 AboutTab:AddParagraph("欢迎", "欢迎来到 ethan脚本中心！\n这是一个收集可用 Roblox 脚本的中心，方便快速运行。\n此脚本完全免费，请勿倒卖！")
+-- 当前现实时间 Paragraph（实时刷新）
+local timeParagraph = AboutTab:AddParagraph("当前时间", "加载中...")
 
+task.spawn(function()
+    while task.wait(1) do
+        -- 获取当前系统时间（本地时区）
+        local now = os.date("*t")
+        local timeStr = string.format("%04d-%02d-%02d %02d:%02d:%02d",
+            now.year, now.month, now.day, now.hour, now.min, now.sec)
+        timeParagraph:Set(timeStr)
+    end
+end)
 -- 第 2 个标签页：通用功能
 local CommonTab = Window:MakeTab({
     Name = "通用",
