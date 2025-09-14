@@ -649,7 +649,7 @@ function OrionLib:MakeWindow(WindowConfig)
         reopenBtn.Size = UDim2.new(0, 50, 0, 50)
         reopenBtn.Position = UDim2.new(1, -60, 0, 10) -- 右上角
         reopenBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        reopenBtn.Image = "rbxassetid://7072719338" -- 图标ID，可换
+        reopenBtn.Image = "rbxassetid://4384403532" -- 图标ID，可换
         reopenBtn.Parent = MainWindow.Parent
     
         local corner = Instance.new("UICorner")
