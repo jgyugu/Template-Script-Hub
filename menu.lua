@@ -305,55 +305,96 @@ CommonTab:AddToggle({
     end
 })
 
--- 开关：踏空而行（隐形无碰撞版）
+-- 开关：踏空而行
 local airwalkPart
 local airwalkConnection
+local lastY = nil -- 记录平台当前高度
+local tolerance = 0.4 -- 容差，允许下沉的距离（studs）
 
-local function createAirwalkPart()
-    if not airwalkPart then
-        airwalkPart = Instance.new("Part")
-        airwalkPart.Size = Vector3.new(6, 1, 6)
-        airwalkPart.Anchored = true
-        airwalkPart.Transparency = 1 -- 完全透明
-        airwalkPart.CanCollide = false -- 不挡住任何人
-        airwalkPart.Massless = true
-        airwalkPart.Name = "AirWalkPart"
-        airwalkPart.Parent = workspace
+-- 销毁平台
+local function destroyAirwalkPart()
+    if airwalkPart then
+        airwalkPart:Destroy()
+        airwalkPart = nil
     end
 end
 
+-- 创建平台
+local function createAirwalkPart()
+    destroyAirwalkPart() -- 创建前先清理旧的
+    airwalkPart = Instance.new("Part")
+    airwalkPart.Size = Vector3.new(6, 5, 6) -- 厚度 5
+    airwalkPart.Anchored = true
+    airwalkPart.Transparency = 1 -- 调试可见（调试完成可改为 1 隐形）
+    airwalkPart.CanCollide = true
+    airwalkPart.Massless = true
+    airwalkPart.Name = "AirWalkPart"
+    airwalkPart.Parent = workspace
+end
+
+-- 启动踏空
+local function startAirwalk()
+    createAirwalkPart()
+    lastY = nil
+
+    if airwalkConnection then
+        airwalkConnection:Disconnect()
+    end
+
+    airwalkConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = lp.Character.HumanoidRootPart
+            local pos = hrp.Position
+            local halfHeight = airwalkPart.Size.Y / 2
+            local targetY = pos.Y - 3.5 - halfHeight -- 顶面对齐脚底
+
+            -- 初始化高度
+            if not lastY then
+                lastY = targetY
+            end
+
+            -- 只允许上升
+            if targetY > lastY then
+                lastY = targetY
+            end
+
+            -- 更新平台位置
+            airwalkPart.Position = Vector3.new(pos.X, lastY, pos.Z)
+
+            -- 防 NoClip 托举（带容差）：只调整 Y 轴，不改朝向
+            if pos.Y < lastY + halfHeight - tolerance then
+                local cf = hrp.CFrame
+                hrp.CFrame = CFrame.fromMatrix(
+                    Vector3.new(cf.Position.X, lastY + halfHeight, cf.Position.Z),
+                    cf.RightVector,
+                    cf.UpVector
+                )
+            end
+        end
+    end)
+end
+
+-- UI 开关
 CommonTab:AddToggle({
     Name = "踏空而行",
     Default = false,
     Callback = function(state)
         if state then
-            createAirwalkPart()
-
-            airwalkConnection = game:GetService("RunService").RenderStepped:Connect(function()
-                if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
-                    local pos = lp.Character.HumanoidRootPart.Position
-                    airwalkPart.Position = Vector3.new(pos.X, pos.Y - 3.5, pos.Z)
-                end
-            end)
-
-            -- 角色重生时重新创建方块
+            startAirwalk()
+            -- 重生后继续运行，不销毁
             lp.CharacterAdded:Connect(function()
                 task.wait(1)
-                createAirwalkPart()
+                startAirwalk()
             end)
         else
             if airwalkConnection then
                 airwalkConnection:Disconnect()
                 airwalkConnection = nil
             end
-            if airwalkPart then
-                airwalkPart:Destroy()
-                airwalkPart = nil
-            end
+            destroyAirwalkPart() -- 关掉时才清理
         end
     end
 })
-
 -- ===== 一键视觉增强（夜视 + 去雾） =====
 local lighting = game:GetService("Lighting")
 
