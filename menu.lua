@@ -30,33 +30,16 @@ local Window = OrionLib:MakeWindow({
     Icon = "rbxassetid://4483345998"
 })
 
--- ===== 公告标签页 =====
+-- ===== 关于公告标签页 =====
 local NoticeTab = Window:MakeTab({
     Name = "公告",
     Icon = "rbxassetid://4483345998",
     PremiumOnly = false
 })
-NoticeTab:AddSection({ Name = "最新公告" })
-NoticeTab:AddParagraph("公告内容", announcement)
+NoticeTab:AddSection({ Name = "最新公告:" })
+NoticeTab:AddParagraph("公告内容:", announcement)
 
--- 在公告页添加 时间 / FPS / Ping 段落
-local timeParagraph = NoticeTab:AddParagraph("当前时间 / 性能信息", "加载中...")
 
-task.spawn(function()
-    local RunService = game:GetService("RunService")
-    local Stats = game:GetService("Stats")
-    while task.wait(1) do
-        local now = os.date("*t")
-        local timeStr = string.format("%04d-%02d-%02d %02d:%02d:%02d",
-            now.year, now.month, now.day, now.hour, now.min, now.sec)
-        local fps = math.floor(1 / RunService.RenderStepped:Wait())
-        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-        timeParagraph:Set(string.format(
-            "时间: %s\nFPS: %d\nPing: %d ms",
-            timeStr, fps, ping
-        ))
-    end
-end)
 
 -- ===== 通用功能标签页 =====
 local CommonTab = Window:MakeTab({
@@ -64,7 +47,7 @@ local CommonTab = Window:MakeTab({
     Icon = "rbxassetid://4483345998",
     PremiumOnly = false
 })
-CommonTab:AddSection({ Name = "脚本列表" })
+CommonTab:AddSection({ Name = "脚本列表:" })
 
 -- ===== 云端获取 scripts.lua（脚本列表） =====
 local scripts = loadstring(game:HttpGet("https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/scripts.lua"))()
@@ -88,16 +71,17 @@ else
     CommonTab:AddParagraph("警告", "云端获取脚本失败")
 end
 
+CommonTab:AddSection({ Name = "功能:" })
+
 -- ===== 玩家标签页 =====
 local PlayerTab = Window:MakeTab({
     Name = "玩家",
     Icon = "rbxassetid://14250466898",
     PremiumOnly = false
 })
-PlayerTab:AddSection({ Name = "玩家属性设置" })
 
--- 玩家状态 Paragraph（实时刷新）
-local playerStatusParagraph = PlayerTab:AddParagraph("玩家状态", "加载中...")
+-- 玩家状态 Paragraph（实时刷新） → 移到关于此脚本标签页
+local playerStatusParagraph = PlayerTab:AddParagraph("玩家状态:", "加载中...")
 
 -- 辅助：获取玩家核心对象
 local function getHumanoid()
@@ -141,26 +125,11 @@ task.spawn(function()
     end
 end)
 
--- 角色重生时提示并快速刷新一次
-lp.CharacterAdded:Connect(function()
-    playerStatusParagraph:Set("检测到角色重生，加载中...")
-    task.delay(1, function()
-        local hum = getHumanoid()
-        local hrp = getHRP()
-        if hum and hrp then
-            local pos = hrp.Position
-            playerStatusParagraph:Set(string.format(
-                "速度: %d\n跳跃力: %d\n重力: %g\n血量: %d / %d\n位置: X=%.1f, Y=%.1f, Z=%.1f",
-                hum.WalkSpeed, hum.JumpPower, workspace.Gravity,
-                math.floor(hum.Health), math.floor(hum.MaxHealth),
-                pos.X, pos.Y, pos.Z
-            ))
-        end
-    end)
-end)
+PlayerTab:AddSection({ Name = "玩家属性设置(部分服务器没用)" })
+
 -- 输入框：设置跳跃力
 PlayerTab:AddTextbox({
-    Name = "设置跳跃力",
+    Name = "设置跳跃",
     Default = "",
     TextDisappear = true,
     Callback = function(Value)
@@ -184,7 +153,7 @@ PlayerTab:AddTextbox({
 
 -- 输入框：设置移动速度
 PlayerTab:AddTextbox({
-    Name = "设置移动速度",
+    Name = "设置速度",
     Default = "",
     TextDisappear = true,
     Callback = function(Value)
@@ -244,7 +213,7 @@ PlayerTab:AddButton({
         })
     end
 })
-
+PlayerTab:AddSection({ Name = "玩家功能类:" })
 -- 开关：无限跳
 local infiniteJumpConnection
 CommonTab:AddToggle({
@@ -299,27 +268,41 @@ CommonTab:AddToggle({
     end
 })
 
--- 开关：踏空而行
+-- 开关：踏空而行（隐形无碰撞版）
 local airwalkPart
 local airwalkConnection
+
+local function createAirwalkPart()
+    if not airwalkPart then
+        airwalkPart = Instance.new("Part")
+        airwalkPart.Size = Vector3.new(6, 1, 6)
+        airwalkPart.Anchored = true
+        airwalkPart.Transparency = 1 -- 完全透明
+        airwalkPart.CanCollide = false -- 不挡住任何人
+        airwalkPart.Massless = true
+        airwalkPart.Name = "AirWalkPart"
+        airwalkPart.Parent = workspace
+    end
+end
+
 CommonTab:AddToggle({
     Name = "踏空而行",
     Default = false,
     Callback = function(state)
         if state then
-            airwalkPart = Instance.new("Part")
-            airwalkPart.Size = Vector3.new(6, 1, 6)
-            airwalkPart.Anchored = true
-            airwalkPart.Transparency = 0.5
-            airwalkPart.Color = Color3.fromRGB(0, 255, 0)
-            airwalkPart.Name = "AirWalkPart"
-            airwalkPart.Parent = workspace
+            createAirwalkPart()
 
             airwalkConnection = game:GetService("RunService").RenderStepped:Connect(function()
                 if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
                     local pos = lp.Character.HumanoidRootPart.Position
                     airwalkPart.Position = Vector3.new(pos.X, pos.Y - 3.5, pos.Z)
                 end
+            end)
+
+            -- 角色重生时重新创建方块
+            lp.CharacterAdded:Connect(function()
+                task.wait(1)
+                createAirwalkPart()
             end)
         else
             if airwalkConnection then
@@ -370,28 +353,38 @@ CommonTab:AddToggle({
     end
 })
 
--- 开关：透视玩家
+-- 开关：透视玩家（稳固版）
 local highlightFolder = Instance.new("Folder")
 highlightFolder.Name = "ESP_Highlights"
 highlightFolder.Parent = game:GetService("CoreGui")
 
 local function addHighlightToPlayer(player)
-    if player ~= lp and player.Character and not highlightFolder:FindFirstChild(player.Name) then
-        local highlight = Instance.new("Highlight")
-        highlight.Name = player.Name
-        highlight.Adornee = player.Character
-        highlight.FillColor = Color3.fromRGB(255, 0, 0) -- 红色高亮
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.FillTransparency = 0.5
-        highlight.OutlineTransparency = 0
-        highlight.Parent = highlightFolder
-    end
-end
+    if player ~= lp then
+        local function attachHighlight(char)
+            -- 移除旧的
+            local old = highlightFolder:FindFirstChild(player.Name)
+            if old then old:Destroy() end
 
-local function removeHighlightFromPlayer(player)
-    local h = highlightFolder:FindFirstChild(player.Name)
-    if h then
-        h:Destroy()
+            -- 创建新的
+            local highlight = Instance.new("Highlight")
+            highlight.Name = player.Name
+            highlight.Adornee = char
+            highlight.FillColor = Color3.fromRGB(255, 0, 0)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.FillTransparency = 0.5
+            highlight.OutlineTransparency = 0
+            highlight.Parent = highlightFolder
+        end
+
+        -- 如果角色已存在，立即绑定
+        if player.Character then
+            attachHighlight(player.Character)
+        end
+
+        -- 监听角色刷新
+        player.CharacterAdded:Connect(function(char)
+            attachHighlight(char)
+        end)
     end
 end
 
@@ -406,42 +399,247 @@ PlayerTab:AddToggle({
             for _, plr in ipairs(Players:GetPlayers()) do
                 addHighlightToPlayer(plr)
             end
+
             -- 监听新玩家加入
             espConnections.PlayerAdded = Players.PlayerAdded:Connect(function(plr)
-                if plr ~= lp then
-                    plr.CharacterAdded:Connect(function()
-                        addHighlightToPlayer(plr)
-                    end)
-                end
+                addHighlightToPlayer(plr)
             end)
-            -- 监听玩家角色刷新
-            espConnections.CharacterAdded = {}
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= lp then
-                    espConnections.CharacterAdded[plr.Name] = plr.CharacterAdded:Connect(function()
-                        addHighlightToPlayer(plr)
-                    end)
-                end
-            end
         else
             -- 关闭透视，移除所有高亮
             for _, h in ipairs(highlightFolder:GetChildren()) do
                 h:Destroy()
             end
-            -- 断开所有连接
+            -- 断开监听
             if espConnections.PlayerAdded then
                 espConnections.PlayerAdded:Disconnect()
                 espConnections.PlayerAdded = nil
             end
-            if espConnections.CharacterAdded then
-                for _, conn in pairs(espConnections.CharacterAdded) do
-                    conn:Disconnect()
-                end
-                espConnections.CharacterAdded = {}
-            end
         end
     end
 })
+
+-- ===== 传送到玩家背后功能（带碰撞关闭） =====
+local selectedTarget = nil
+
+-- 获取玩家列表（排除自己）
+local function getPlayerList()
+    local names = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp then
+            table.insert(names, plr.Name)
+        end
+    end
+    return names
+end
+
+-- 下拉列表：选择传送目标玩家
+local tpDropdown = PlayerTab:AddDropdown({
+    Name = "选择传送目标玩家",
+    Default = "未选择",
+    Options = getPlayerList(),
+    Callback = function(value)
+        selectedTarget = value
+        OrionLib:MakeNotification({
+            Name = "目标已选择",
+            Content = "已选择传送目标：" .. value,
+            Image = "rbxassetid://4483345998",
+            Time = 2
+        })
+    end
+})
+
+-- 更新下拉列表
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= lp then
+        tpDropdown:Refresh(getPlayerList(), true)
+    end
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    if plr ~= lp then
+        tpDropdown:Refresh(getPlayerList(), true)
+        if plr.Name == selectedTarget then
+            selectedTarget = nil
+        end
+    end
+end)
+
+-- 辅助函数：设置本地玩家碰撞
+local function setLocalCollision(state)
+    if lp.Character then
+        for _, part in ipairs(lp.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = state
+            end
+        end
+    end
+end
+
+-- 开关：持续传送到玩家背后
+local tpConnection
+PlayerTab:AddToggle({
+    Name = "持续传送到玩家背后",
+    Default = false,
+    Callback = function(state)
+        if state then
+            if not selectedTarget then
+                OrionLib:MakeNotification({
+                    Name = "未选择目标",
+                    Content = "请先在下拉列表选择一个玩家！",
+                    Image = "rbxassetid://4483345998",
+                    Time = 2
+                })
+                return
+            end
+
+            -- 关闭本地玩家碰撞
+            setLocalCollision(false)
+
+            tpConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                local targetPlayer = Players:FindFirstChild(selectedTarget)
+                if targetPlayer 
+                and targetPlayer.Character 
+                and targetPlayer.Character:FindFirstChild("HumanoidRootPart") 
+                and lp.Character 
+                and lp.Character:FindFirstChild("HumanoidRootPart") then
+                    
+                    local targetHRP = targetPlayer.Character.HumanoidRootPart
+                    local myHRP = lp.Character.HumanoidRootPart
+
+                    local backOffset = -targetHRP.CFrame.LookVector * 4
+                    myHRP.CFrame = CFrame.new(targetHRP.Position + backOffset, targetHRP.Position)
+                end
+            end)
+        else
+            if tpConnection then
+                tpConnection:Disconnect()
+                tpConnection = nil
+            end
+            -- 恢复本地玩家碰撞
+            setLocalCollision(true)
+        end
+    end
+})
+
+-- 按钮：一次性传送到玩家背后
+PlayerTab:AddButton({
+    Name = "一次性传送到玩家背后",
+    Callback = function()
+        if not selectedTarget then
+            OrionLib:MakeNotification({
+                Name = "未选择目标",
+                Content = "请先在下拉列表选择一个玩家！",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+            return
+        end
+
+        local targetPlayer = Players:FindFirstChild(selectedTarget)
+        if targetPlayer 
+        and targetPlayer.Character 
+        and targetPlayer.Character:FindFirstChild("HumanoidRootPart") 
+        and lp.Character 
+        and lp.Character:FindFirstChild("HumanoidRootPart") then
+            
+            -- 临时关闭碰撞
+            setLocalCollision(false)
+
+            local targetHRP = targetPlayer.Character.HumanoidRootPart
+            local myHRP = lp.Character.HumanoidRootPart
+
+            local backOffset = -targetHRP.CFrame.LookVector * 4
+            myHRP.CFrame = CFrame.new(targetHRP.Position + backOffset, targetHRP.Position)
+
+            -- 恢复碰撞
+            setLocalCollision(true)
+
+            OrionLib:MakeNotification({
+                Name = "传送成功",
+                Content = "已传送到 " .. selectedTarget .. " 背后",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        else
+            OrionLib:MakeNotification({
+                Name = "传送失败",
+                Content = "目标玩家不可用或未加载角色",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        end
+    end
+})
+
+-- 创建“关于此脚本”标签页
+local AboutTab = Window:MakeTab({
+    Name = "关于此脚本",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+-- 按钮：复制作者 QQ
+AboutTab:AddButton({
+    Name = "复制作者QQ",
+    Callback = function()
+        if setclipboard then
+            setclipboard("635681310")
+            OrionLib:MakeNotification({
+                Name = "复制成功",
+                Content = "作者QQ已复制到剪贴板",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        else
+            OrionLib:MakeNotification({
+                Name = "复制失败",
+                Content = "当前环境不支持复制到剪贴板",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        end
+    end
+})
+
+
+
+-- 在关于此脚本页添加 时间 / FPS / Ping 段落
+local timeParagraph = AboutTab:AddParagraph("游戏状态:", "加载中...")
+
+task.spawn(function()
+    local RunService = game:GetService("RunService")
+    local Stats = game:GetService("Stats")
+    while task.wait(1) do
+        local now = os.date("*t")
+        local timeStr = string.format("%04d-%02d-%02d %02d:%02d:%02d",
+            now.year, now.month, now.day, now.hour, now.min, now.sec)
+        local fps = math.floor(1 / RunService.RenderStepped:Wait())
+        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        timeParagraph:Set(string.format(
+            "时间: %s\nFPS: %d\nPing: %d ms",
+            timeStr, fps, ping
+        ))
+    end
+end)
+
+
+
+-- 角色重生时提示并快速刷新一次
+lp.CharacterAdded:Connect(function()
+    playerStatusParagraph:Set("检测到角色重生，加载中...")
+    task.delay(1, function()
+        local hum = getHumanoid()
+        local hrp = getHRP()
+        if hum and hrp then
+            local pos = hrp.Position
+            playerStatusParagraph:Set(string.format(
+                "速度: %d\n跳跃力: %d\n重力: %g\n血量: %d / %d\n位置: X=%.1f, Y=%.1f, Z=%.1f",
+                hum.WalkSpeed, hum.JumpPower, workspace.Gravity,
+                math.floor(hum.Health), math.floor(hum.MaxHealth),
+                pos.X, pos.Y, pos.Z
+            ))
+        end
+    end)
+end)
 
 -- ===== 初始化 UI =====
 OrionLib:Init()
