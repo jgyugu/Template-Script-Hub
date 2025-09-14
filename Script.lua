@@ -12,21 +12,23 @@ for _, uid in ipairs(uidBlacklist) do
 end
 -- ========================
 
--- ===== 配置区 =====
-local scripts = {
-    {
-        name = "飞行脚本",
-        url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/fly_Script",
-        author = "未知",
-        game = "通用"
-    },
-        {
-        name = "飞车脚本",
-        url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/Vehicle_Fly_Script",
-        author = "未知",
-        game = "通用"
-    }
-}
+-- ===== 配置区（远程获取） =====
+local HttpService = game:GetService("HttpService")
+local scriptsURL = "https://raw.githubusercontent.com/你的用户名/你的仓库/main/scripts.json"
+
+local scripts = {}
+local success, result = pcall(function()
+    return HttpService:JSONDecode(game:HttpGet(scriptsURL))
+end)
+
+if success and type(result) == "table" then
+    scripts = result
+else
+    warn("无法获取远程 scripts 配置")
+    CommonTab:AddParagraph("警告", "云端获取脚本失败!")
+    -- 直接返回，不加载任何脚本按钮
+    return
+end
 -- =================
 
 -- 加载改版 ChinaQY UI
@@ -51,16 +53,29 @@ local AboutTab = Window:MakeTab({
 })
 AboutTab:AddSection({ Name = "脚本中心" })
 AboutTab:AddParagraph("欢迎", "欢迎来到 ethan脚本中心！\n这是一个收集可用 Roblox 脚本的中心，方便快速运行。\n此脚本完全免费，请勿倒卖！")
--- 当前现实时间 Paragraph（实时刷新）
-local timeParagraph = AboutTab:AddParagraph("当前时间", "加载中...")
+-- 当前时间 + FPS + Ping Paragraph（实时刷新）
+local timeParagraph = AboutTab:AddParagraph("当前时间 / 性能信息", "加载中...")
 
 task.spawn(function()
+    local RunService = game:GetService("RunService")
+    local Stats = game:GetService("Stats")
     while task.wait(1) do
-        -- 获取当前系统时间（本地时区）
+        -- 获取当前系统时间
         local now = os.date("*t")
         local timeStr = string.format("%04d-%02d-%02d %02d:%02d:%02d",
             now.year, now.month, now.day, now.hour, now.min, now.sec)
-        timeParagraph:Set(timeStr)
+
+        -- 获取 FPS
+        local fps = math.floor(1 / RunService.RenderStepped:Wait())
+
+        -- 获取 Ping（毫秒）
+        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+
+        -- 更新段落
+        timeParagraph:Set(string.format(
+            "时间: %s\nFPS: %d\nPing: %d ms",
+            timeStr, fps, ping
+        ))
     end
 end)
 -- 第 2 个标签页：通用功能
@@ -82,30 +97,23 @@ PlayerTab:AddSection({ Name = "玩家属性设置" })
 -- 玩家状态 Paragraph（实时刷新）
 local playerStatusParagraph = PlayerTab:AddParagraph("玩家状态", "加载中...")
 
--- 每 0.5 秒刷新一次信息
 task.spawn(function()
     while task.wait(0.5) do
-        if lp.Character and lp.Character:FindFirstChildOfClass("Humanoid") and lp.Character:FindFirstChild("HumanoidRootPart") then
+        if lp.Character 
+        and lp.Character:FindFirstChildOfClass("Humanoid") 
+        and lp.Character:FindFirstChild("HumanoidRootPart") then
+            
             local hum = lp.Character:FindFirstChildOfClass("Humanoid")
             local pos = lp.Character.HumanoidRootPart.Position
 
-            -- 获取 FPS
-            local fps = math.floor(1 / game:GetService("RunService").RenderStepped:Wait())
-
-            -- 获取 Ping（毫秒）
-            local ping = math.floor(game:GetService("Stats")
-                .Network.ServerStatsItem["Data Ping"]:GetValue())
-
             playerStatusParagraph:Set(string.format(
-                "速度: %s\n跳跃力: %s\n重力: %s\n血量: %s / %s\n位置: X=%.1f, Y=%.1f, Z=%.1f\nFPS: %d\nPing: %d ms",
+                "速度: %s\n跳跃力: %s\n重力: %s\n血量: %s / %s\n位置: X=%.1f, Y=%.1f, Z=%.1f",
                 hum.WalkSpeed,
                 hum.JumpPower,
                 workspace.Gravity,
                 math.floor(hum.Health),
                 math.floor(hum.MaxHealth),
-                pos.X, pos.Y, pos.Z,
-                fps,
-                ping
+                pos.X, pos.Y, pos.Z
             ))
         else
             playerStatusParagraph:Set("未检测到玩家角色")
@@ -338,7 +346,7 @@ local oldFogColor = lighting.FogColor
 CommonTab:AddToggle({
     Name = "去雾",
     Default = false,
-    Callback = function(state)
+    Callback = functio(state)
         if state then
             -- 移除雾
             lighting.FogEnd = 1e6
