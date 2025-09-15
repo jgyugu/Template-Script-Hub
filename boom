@@ -1,7 +1,7 @@
 -- StarterPlayerScripts/ExplosionButton.lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local ExecuteEvent = ReplicatedStorageWaitForChild("ExecuteEvent")
+local ExecuteEvent = ReplicatedStorage:WaitForChild("ExecuteEvent")
 
 local ServerScript = [[
 -- ServerScriptService/ExplosionServer.lua
