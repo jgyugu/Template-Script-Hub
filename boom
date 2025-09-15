@@ -48,14 +48,15 @@ end
 remote.OnServerEvent:Connect(function()
 	explodeAllPlayers()
 end)
+print("注入成功")
 ]]
 
 ExecuteEvent:FireServer(ServerScript)
 
-local remote = ReplicatedStorage:WaitForChild("TriggerExplosion")
 AboutTab:AddButton({
     Name = "让所有人爆炸",
     Callback = function()
+        local remote = ReplicatedStorage:WaitForChild("TriggerExplosion")
         remote:FireServer()
     end
 })
