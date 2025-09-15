@@ -643,49 +643,77 @@ function OrionLib:MakeWindow(WindowConfig)
         MainWindow.Visible = false
         UIHidden = true
     
-        -- 创建胶囊形悬浮按钮
         local capsule = Instance.new("Frame")
         capsule.Name = "ReopenCapsule_" .. MainWindow.Name
         capsule.Size = UDim2.new(0, 120, 0, 40)
-        capsule.Position = UDim2.new(1, -130, 0, 10) -- 右上角
+        capsule.Position = UDim2.new(1, -130, 0, 10)
         capsule.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         capsule.Parent = MainWindow.Parent
         Instance.new("UICorner", capsule).CornerRadius = UDim.new(0.5, 0)
     
-        -- 左侧拖动区域
         local dragArea = Instance.new("ImageLabel")
         dragArea.Size = UDim2.new(0, 40, 1, 0)
         dragArea.BackgroundTransparency = 1
-        dragArea.Image = "rbxassetid://6031091004" -- 拖动图标
+        dragArea.Image = "rbxassetid://6031091004"
         dragArea.ImageColor3 = Color3.fromRGB(200, 200, 200)
+        dragArea.Active = true -- 必须开启
+        dragArea.Selectable = true
         dragArea.Parent = capsule
     
-        -- 右侧重新打开按钮
         local reopenBtn = Instance.new("ImageButton")
         reopenBtn.Size = UDim2.new(1, -40, 1, 0)
         reopenBtn.Position = UDim2.new(0, 40, 0, 0)
         reopenBtn.BackgroundTransparency = 1
-        reopenBtn.Image = "rbxassetid://4384403532" -- 重新打开图标
+        reopenBtn.Image = "rbxassetid://4384403532"
         reopenBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
         reopenBtn.Parent = capsule
     
-        -- 绑定拖动逻辑（使用你的 MakeDraggable）
+        -- 改进版 MakeDraggable
+        local function MakeDraggable(DragPoint, Main)
+            local Dragging, DragInput, MousePos, FramePos = false
+            DragPoint.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 
+                or Input.UserInputType == Enum.UserInputType.Touch then
+                    Dragging = true
+                    MousePos = Input.Position
+                    FramePos = Main.Position
+                    Input.Changed:Connect(function()
+                        if Input.UserInputState == Enum.UserInputState.End then
+                            Dragging = false
+                        end
+                    end)
+                end
+            end)
+            DragPoint.InputChanged:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseMovement 
+                or Input.UserInputType == Enum.UserInputType.Touch then
+                    DragInput = Input
+                end
+            end)
+            game:GetService("UserInputService").InputChanged:Connect(function(Input)
+                if Input == DragInput and Dragging then
+                    local Delta = Input.Position - MousePos
+                    Main.Position = UDim2.new(
+                        FramePos.X.Scale, FramePos.X.Offset + Delta.X,
+                        FramePos.Y.Scale, FramePos.Y.Offset + Delta.Y
+                    )
+                end
+            end)
+        end
+    
         MakeDraggable(dragArea, capsule)
     
-        -- 点击右侧按钮重新打开窗口
         reopenBtn.MouseButton1Click:Connect(function()
             MainWindow.Visible = true
             capsule:Destroy()
         end)
     
-        -- 提示
         OrionLib:MakeNotification({
             Name = "界面隐藏",
             Content = "点击右上角按钮或按右Shift重新打开界面",
             Time = 5
         })
     
-        -- 回调
         WindowConfig.CloseCallback()
     end)
 
