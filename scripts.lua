@@ -16,3 +16,5 @@ local scripts = {
         id = 114514267
     },
 }
+
+return scripts
