@@ -643,11 +643,11 @@ function OrionLib:MakeWindow(WindowConfig)
         MainWindow.Visible = false
         UIHidden = true
     
-        -- 胶囊按钮（右上角，左拖动右点击）
+        -- 胶囊按钮
         local capsule = Instance.new("Frame")
         capsule.Name = "ReopenCapsule_" .. MainWindow.Name
-        capsule.Size = UDim2.new(0, 120, 0, 40)
-        capsule.Position = UDim2.new(1, -130, 0, 10)
+        capsule.Size = UDim2.new(0, 160, 0, 40) -- 稍微加宽，容纳三个区域
+        capsule.Position = UDim2.new(1, -170, 0, 10)
         capsule.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         capsule.Parent = MainWindow.Parent
         Instance.new("UICorner", capsule).CornerRadius = UDim.new(0.5, 0)
@@ -662,21 +662,30 @@ function OrionLib:MakeWindow(WindowConfig)
         dragArea.Selectable = true
         dragArea.Parent = capsule
     
-        -- 右侧点击区
+        -- 中间复位按钮
+        local resetBtn = Instance.new("ImageButton")
+        resetBtn.Size = UDim2.new(0, 40, 1, 0)
+        resetBtn.Position = UDim2.new(0, 40, 0, 0)
+        resetBtn.BackgroundTransparency = 1
+        resetBtn.Image = "rbxassetid://6031094670" -- 复位图标，可换
+        resetBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        resetBtn.ScaleType = Enum.ScaleType.Fit
+        resetBtn.Parent = capsule
+    
+        -- 右侧重新打开按钮
         local reopenBtn = Instance.new("ImageButton")
-        reopenBtn.Size = UDim2.new(1, -40, 1, 0)
-        reopenBtn.Position = UDim2.new(0, 40, 0, 0)
+        reopenBtn.Size = UDim2.new(0, 40, 1, 0)
+        reopenBtn.Position = UDim2.new(0, 80, 0, 0)
         reopenBtn.BackgroundTransparency = 1
         reopenBtn.Image = "rbxassetid://4384403532"
         reopenBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        reopenBtn.ScaleType = Enum.ScaleType.Fit
         reopenBtn.Parent = capsule
     
-        -- 拖动（自由拖动；松手后再回到屏幕内）
+        -- 拖动逻辑（自由拖动，松手后回屏幕内）
         local UserInputService = game:GetService("UserInputService")
         local TweenService = game:GetService("TweenService")
-    
-        local dragging = false
-        local dragInput, dragStart, startPos
+        local dragging, dragInput, dragStart, startPos
     
         local function updateWhileDragging(input)
             local delta = input.Position - dragStart
@@ -686,28 +695,18 @@ function OrionLib:MakeWindow(WindowConfig)
             )
         end
     
-        -- 松手后将位置“拉回”屏幕内（带平滑回弹）
         local function snapBackIntoViewport()
             local cam = workspace.CurrentCamera
             if not cam then return end
             local screenSize = cam.ViewportSize
-    
-            -- 当前像素坐标
             local curX = capsule.AbsolutePosition.X
             local curY = capsule.AbsolutePosition.Y
             local width = capsule.AbsoluteSize.X
             local height = capsule.AbsoluteSize.Y
-    
-            -- 计算目标像素坐标（限制在屏幕内）
             local targetX = math.clamp(curX, 0, screenSize.X - width)
             local targetY = math.clamp(curY, 0, screenSize.Y - height)
-    
-            -- 转为基于屏幕左上角的绝对偏移定位
-            local targetPos = UDim2.new(0, targetX, 0, targetY)
-    
-            -- 平滑回弹（0.15s）
             TweenService:Create(capsule, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = targetPos
+                Position = UDim2.new(0, targetX, 0, targetY)
             }):Play()
         end
     
@@ -717,11 +716,9 @@ function OrionLib:MakeWindow(WindowConfig)
                 dragging = true
                 dragStart = input.Position
                 startPos = capsule.Position
-    
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
-                        -- 在“拖动结束”的这一刻，才进行边界修正
                         snapBackIntoViewport()
                     end
                 end)
@@ -741,26 +738,37 @@ function OrionLib:MakeWindow(WindowConfig)
             end
         end)
     
-        -- 点击右侧按钮重新打开
+        -- 点击复位按钮 → 窗口回到屏幕中央 + 显示 + 通知
+        resetBtn.MouseButton1Click:Connect(function()
+            -- 隐藏胶囊按钮
+            capsule.Visible = false
+        
+            -- 窗口回到屏幕中央
+            MainWindow.Position = UDim2.new(
+                0.5, -MainWindow.AbsoluteSize.X / 2,
+                0.5, -MainWindow.AbsoluteSize.Y / 2
+            )
+            MainWindow.Visible = true
+        
+            -- 通知
+            OrionLib:MakeNotification({
+                Name = "提示",
+                Content = "窗口已复位",
+                Time = 3
+            })
+        end)
+    
+        -- 点击右侧按钮 → 重新打开窗口
         reopenBtn.MouseButton1Click:Connect(function()
             MainWindow.Visible = true
             capsule:Destroy()
         end)
     
-        -- 通知与音效保持不变
         OrionLib:MakeNotification({
             Name = "界面隐藏",
             Content = "点击右上角按钮或按右Shift重新打开界面",
             Time = 5
         })
-    
-        local Sound = Instance.new("Sound")
-        Sound.SoundId = "rbxassetid://4590662766"
-        Sound.Parent = game:GetService("SoundService")
-        Sound.Volume = 5
-        Sound:Play()
-        Sound.Ended:Wait()
-        Sound:Destroy()
     
         WindowConfig.CloseCallback()
     end)
