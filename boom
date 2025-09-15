@@ -1,6 +1,6 @@
 -- StarterPlayerScripts/ExplosionButton.lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local remote = ReplicatedStorage:WaitForChild("TriggerExplosion")
+
 local ExecuteEvent = ReplicatedStorageWaitForChild("ExecuteEvent")
 
 local ServerScript = [[
@@ -52,7 +52,7 @@ end)
 
 ExecuteEvent:FireServer(ServerScript)
 
-
+local remote = ReplicatedStorage:WaitForChild("TriggerExplosion")
 AboutTab:AddButton({
     Name = "让所有人爆炸",
     Callback = function()
