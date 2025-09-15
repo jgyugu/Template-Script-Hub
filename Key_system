@@ -173,6 +173,14 @@ local function verifyAndLoad()
 
         StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
         StatusLabel.Text = "验证成功！正在加载..."
+        -- 音效
+        local Sound = Instance.new("Sound")
+        Sound.SoundId = "rbxassetid://4590662766"
+        Sound.Parent = game:GetService("SoundService")
+        Sound.Volume = 5
+        Sound:Play()
+        Sound.Ended:Wait()
+        Sound:Destroy()
 
         task.wait(1)
         ScreenGui:Destroy()
