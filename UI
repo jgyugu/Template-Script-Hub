@@ -643,38 +643,52 @@ function OrionLib:MakeWindow(WindowConfig)
         MainWindow.Visible = false
         UIHidden = true
     
-        -- ===== 创建悬浮按钮（右上角，可拖动，PC+手机） =====
-        local reopenBtn = Instance.new("ImageButton")
-        reopenBtn.Name = "ReopenButton_" .. MainWindow.Name
-        reopenBtn.Size = UDim2.new(0, 50, 0, 50)
-        reopenBtn.Position = UDim2.new(1, -60, 0, 10) -- 右上角
-        reopenBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        reopenBtn.Image = "rbxassetid://4384403532" -- 图标ID，可换
-        reopenBtn.Parent = MainWindow.Parent
-    
+        -- ===== 创建胶囊形悬浮按钮（右上角，左拖动右点击） =====
+        local capsule = Instance.new("Frame")
+        capsule.Name = "ReopenCapsule_" .. MainWindow.Name
+        capsule.Size = UDim2.new(0, 120, 0, 40)
+        capsule.Position = UDim2.new(1, -130, 0, 10) -- 右上角
+        capsule.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        capsule.Parent = MainWindow.Parent
         local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(1, 0)
-        corner.Parent = reopenBtn
+        corner.CornerRadius = UDim.new(0.5, 0)
+        corner.Parent = capsule
     
-        -- 拖动逻辑（支持鼠标和触屏）
+        -- 左侧拖动区域
+        local dragArea = Instance.new("ImageLabel")
+        dragArea.Size = UDim2.new(0, 40, 1, 0)
+        dragArea.BackgroundTransparency = 1
+        dragArea.Image = "rbxassetid://6031091004" -- 拖动图标，可换
+        dragArea.ImageColor3 = Color3.fromRGB(200, 200, 200)
+        dragArea.Parent = capsule
+    
+        -- 右侧重新打开按钮
+        local reopenBtn = Instance.new("ImageButton")
+        reopenBtn.Size = UDim2.new(1, -40, 1, 0)
+        reopenBtn.Position = UDim2.new(0, 40, 0, 0)
+        reopenBtn.BackgroundTransparency = 1
+        reopenBtn.Image = "rbxassetid://4384403532" -- 重新打开图标
+        reopenBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        reopenBtn.Parent = capsule
+    
+        -- 拖动逻辑（PC+手机）
         local UserInputService = game:GetService("UserInputService")
         local dragging, dragStart, startPos, dragInput
     
         local function update(input)
             local delta = input.Position - dragStart
-            reopenBtn.Position = UDim2.new(
+            capsule.Position = UDim2.new(
                 startPos.X.Scale, startPos.X.Offset + delta.X,
                 startPos.Y.Scale, startPos.Y.Offset + delta.Y
             )
         end
     
-        reopenBtn.InputBegan:Connect(function(input)
+        dragArea.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 
             or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = input.Position
-                startPos = reopenBtn.Position
-    
+                startPos = capsule.Position
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
@@ -683,7 +697,7 @@ function OrionLib:MakeWindow(WindowConfig)
             end
         end)
     
-        reopenBtn.InputChanged:Connect(function(input)
+        dragArea.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseMovement 
             or input.UserInputType == Enum.UserInputType.Touch then
                 dragInput = input
@@ -696,10 +710,10 @@ function OrionLib:MakeWindow(WindowConfig)
             end
         end)
     
-        -- 点击按钮重新打开窗口
+        -- 点击右侧按钮重新打开窗口
         reopenBtn.MouseButton1Click:Connect(function()
             MainWindow.Visible = true
-            reopenBtn:Destroy()
+            capsule:Destroy()
         end)
         -- ==============================================
     
