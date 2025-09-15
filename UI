@@ -658,7 +658,7 @@ function OrionLib:MakeWindow(WindowConfig)
         local dragArea = Instance.new("ImageLabel")
         dragArea.Size = UDim2.new(0, 40, 1, 0)
         dragArea.BackgroundTransparency = 1
-        dragArea.Image = "rbxassetid://6031091004" -- 拖动图标，可换
+        dragArea.Image = "rbxassetid://6031091004" -- 拖动图标
         dragArea.ImageColor3 = Color3.fromRGB(200, 200, 200)
         dragArea.Parent = capsule
     
@@ -671,7 +671,7 @@ function OrionLib:MakeWindow(WindowConfig)
         reopenBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
         reopenBtn.Parent = capsule
     
-        -- 拖动逻辑（PC+手机）
+        -- 拖动逻辑（PC+手机，防止移动视角）
         local UserInputService = game:GetService("UserInputService")
         local dragging, dragStart, startPos, dragInput
     
@@ -689,9 +689,15 @@ function OrionLib:MakeWindow(WindowConfig)
                 dragging = true
                 dragStart = input.Position
                 startPos = capsule.Position
+    
+                -- 锁定鼠标位置，防止摄像机移动
+                UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+    
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
+                        -- 恢复鼠标行为
+                        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
                     end
                 end)
             end
