@@ -643,36 +643,31 @@ function OrionLib:MakeWindow(WindowConfig)
         MainWindow.Visible = false
         UIHidden = true
     
-        -- ===== 创建胶囊形悬浮按钮（右上角，左拖动右点击） =====
         local capsule = Instance.new("Frame")
         capsule.Name = "ReopenCapsule_" .. MainWindow.Name
         capsule.Size = UDim2.new(0, 120, 0, 40)
-        capsule.Position = UDim2.new(1, -130, 0, 10) -- 右上角
+        capsule.Position = UDim2.new(1, -130, 0, 10)
         capsule.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         capsule.Parent = MainWindow.Parent
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0.5, 0)
-        corner.Parent = capsule
+        Instance.new("UICorner", capsule).CornerRadius = UDim.new(0.5, 0)
     
-        -- 左侧拖动区域
         local dragArea = Instance.new("ImageLabel")
         dragArea.Size = UDim2.new(0, 40, 1, 0)
         dragArea.BackgroundTransparency = 1
-        dragArea.Image = "rbxassetid://6031091004" -- 拖动图标
+        dragArea.Image = "rbxassetid://6031091004"
         dragArea.ImageColor3 = Color3.fromRGB(200, 200, 200)
         dragArea.Parent = capsule
     
-        -- 右侧重新打开按钮
         local reopenBtn = Instance.new("ImageButton")
         reopenBtn.Size = UDim2.new(1, -40, 1, 0)
         reopenBtn.Position = UDim2.new(0, 40, 0, 0)
         reopenBtn.BackgroundTransparency = 1
-        reopenBtn.Image = "rbxassetid://4384403532" -- 重新打开图标
+        reopenBtn.Image = "rbxassetid://4384403532"
         reopenBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
         reopenBtn.Parent = capsule
     
-        -- 拖动逻辑（PC+手机，防止移动视角）
         local UserInputService = game:GetService("UserInputService")
+        local ContextActionService = game:GetService("ContextActionService")
         local dragging, dragStart, startPos, dragInput
     
         local function update(input)
@@ -683,6 +678,13 @@ function OrionLib:MakeWindow(WindowConfig)
             )
         end
     
+        -- 屏蔽摄像机移动
+        local function blockCamera(_, inputState)
+            if inputState == Enum.UserInputState.Begin then
+                return Enum.ContextActionResult.Sink
+            end
+        end
+    
         dragArea.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 
             or input.UserInputType == Enum.UserInputType.Touch then
@@ -690,14 +692,20 @@ function OrionLib:MakeWindow(WindowConfig)
                 dragStart = input.Position
                 startPos = capsule.Position
     
-                -- 锁定鼠标位置，防止摄像机移动
-                UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+                -- 绑定屏蔽摄像机移动（PC+手机）
+                ContextActionService:BindAction(
+                    "BlockCameraMove",
+                    blockCamera,
+                    false,
+                    Enum.UserInputType.MouseMovement,
+                    Enum.UserInputType.Touch
+                )
     
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
-                        -- 恢复鼠标行为
-                        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+                        -- 解除屏蔽
+                        ContextActionService:UnbindAction("BlockCameraMove")
                     end
                 end)
             end
@@ -716,12 +724,10 @@ function OrionLib:MakeWindow(WindowConfig)
             end
         end)
     
-        -- 点击右侧按钮重新打开窗口
         reopenBtn.MouseButton1Click:Connect(function()
             MainWindow.Visible = true
             capsule:Destroy()
         end)
-        -- ==============================================
     
         OrionLib:MakeNotification({
             Name = "界面隐藏",
