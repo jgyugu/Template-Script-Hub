@@ -10,9 +10,9 @@ return {
         type = "通用"
     },
     {
-        name = "力量传奇(暂时没用)",
-        url = "https://占位符",
-        type = "力量传奇",
-        id = 114514267
+        name = "让所有玩家爆炸",
+        url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/boom",
+        type = "娱乐(仅供我的作品)",
+        id = 6689388756
     }
 }
