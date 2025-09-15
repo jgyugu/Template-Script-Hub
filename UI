@@ -643,106 +643,49 @@ function OrionLib:MakeWindow(WindowConfig)
         MainWindow.Visible = false
         UIHidden = true
     
+        -- 创建胶囊形悬浮按钮
         local capsule = Instance.new("Frame")
         capsule.Name = "ReopenCapsule_" .. MainWindow.Name
         capsule.Size = UDim2.new(0, 120, 0, 40)
-        capsule.Position = UDim2.new(1, -130, 0, 10)
+        capsule.Position = UDim2.new(1, -130, 0, 10) -- 右上角
         capsule.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         capsule.Parent = MainWindow.Parent
         Instance.new("UICorner", capsule).CornerRadius = UDim.new(0.5, 0)
     
+        -- 左侧拖动区域
         local dragArea = Instance.new("ImageLabel")
         dragArea.Size = UDim2.new(0, 40, 1, 0)
         dragArea.BackgroundTransparency = 1
-        dragArea.Image = "rbxassetid://6031091004"
+        dragArea.Image = "rbxassetid://6031091004" -- 拖动图标
         dragArea.ImageColor3 = Color3.fromRGB(200, 200, 200)
         dragArea.Parent = capsule
     
+        -- 右侧重新打开按钮
         local reopenBtn = Instance.new("ImageButton")
         reopenBtn.Size = UDim2.new(1, -40, 1, 0)
         reopenBtn.Position = UDim2.new(0, 40, 0, 0)
         reopenBtn.BackgroundTransparency = 1
-        reopenBtn.Image = "rbxassetid://4384403532"
+        reopenBtn.Image = "rbxassetid://4384403532" -- 重新打开图标
         reopenBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
         reopenBtn.Parent = capsule
     
-        local UserInputService = game:GetService("UserInputService")
-        local ContextActionService = game:GetService("ContextActionService")
-        local dragging, dragStart, startPos, dragInput
+        -- 绑定拖动逻辑（使用你的 MakeDraggable）
+        MakeDraggable(dragArea, capsule)
     
-        local function update(input)
-            local delta = input.Position - dragStart
-            capsule.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end
-    
-        -- 屏蔽摄像机移动
-        local function blockCamera(_, inputState)
-            if inputState == Enum.UserInputState.Begin then
-                return Enum.ContextActionResult.Sink
-            end
-        end
-    
-        dragArea.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 
-            or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                startPos = capsule.Position
-    
-                -- 绑定屏蔽摄像机移动（PC+手机）
-                ContextActionService:BindAction(
-                    "BlockCameraMove",
-                    blockCamera,
-                    false,
-                    Enum.UserInputType.MouseMovement,
-                    Enum.UserInputType.Touch
-                )
-    
-                input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
-                        dragging = false
-                        -- 解除屏蔽
-                        ContextActionService:UnbindAction("BlockCameraMove")
-                    end
-                end)
-            end
-        end)
-    
-        dragArea.InputChanged:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement 
-            or input.UserInputType == Enum.UserInputType.Touch then
-                dragInput = input
-            end
-        end)
-    
-        UserInputService.InputChanged:Connect(function(input)
-            if input == dragInput and dragging then
-                update(input)
-            end
-        end)
-    
+        -- 点击右侧按钮重新打开窗口
         reopenBtn.MouseButton1Click:Connect(function()
             MainWindow.Visible = true
             capsule:Destroy()
         end)
     
+        -- 提示
         OrionLib:MakeNotification({
             Name = "界面隐藏",
             Content = "点击右上角按钮或按右Shift重新打开界面",
             Time = 5
         })
     
-        local Sound = Instance.new("Sound")
-        Sound.SoundId = "rbxassetid://4590662766"
-        Sound.Parent = game:GetService("SoundService")
-        Sound.Volume = 5
-        Sound:Play()
-        Sound.Ended:Wait()
-        Sound:Destroy()
-    
+        -- 回调
         WindowConfig.CloseCallback()
     end)
 
