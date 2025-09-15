@@ -392,10 +392,14 @@ function OrionLib:MakeNotification(NotificationConfig)
         NotificationConfig.Image = NotificationConfig.Image or "rbxassetid://4384403532"
         NotificationConfig.Time = NotificationConfig.Time or 15
 
+        -- 提高通知容器层级
+        NotificationHolder.ZIndex = 1000
+
         local NotificationParent = SetProps(MakeElement("TFrame"), {
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
-            Parent = NotificationHolder
+            Parent = NotificationHolder,
+            ZIndex = 1001
         })
 
         local NotificationFrame = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(25, 25, 25), 0, 10), {
@@ -403,20 +407,25 @@ function OrionLib:MakeNotification(NotificationConfig)
             Size = UDim2.new(1, 0, 0, 0),
             Position = UDim2.new(1, -55, 0, 0),
             BackgroundTransparency = 0,
-            AutomaticSize = Enum.AutomaticSize.Y
+            AutomaticSize = Enum.AutomaticSize.Y,
+            ZIndex = 1002
         }), {
+            -- UIStroke/UIPadding 不要设置 ZIndex（会报错）
             MakeElement("Stroke", Color3.fromRGB(93, 93, 93), 1.2),
             MakeElement("Padding", 12, 12, 12, 12),
+
             SetProps(MakeElement("Image", NotificationConfig.Image), {
                 Size = UDim2.new(0, 20, 0, 20),
                 ImageColor3 = Color3.fromRGB(240, 240, 240),
-                Name = "Icon"
+                Name = "Icon",
+                ZIndex = 1003
             }),
             SetProps(MakeElement("Label", NotificationConfig.Name, 15), {
                 Size = UDim2.new(1, -30, 0, 20),
                 Position = UDim2.new(0, 30, 0, 0),
                 Font = Enum.Font.GothamBold,
-                Name = "Title"
+                Name = "Title",
+                ZIndex = 1003
             }),
             SetProps(MakeElement("Label", NotificationConfig.Content, 14), {
                 Size = UDim2.new(1, 0, 0, 0),
@@ -425,7 +434,8 @@ function OrionLib:MakeNotification(NotificationConfig)
                 Name = "Content",
                 AutomaticSize = Enum.AutomaticSize.Y,
                 TextColor3 = Color3.fromRGB(200, 200, 200),
-                TextWrapped = true
+                TextWrapped = true,
+                ZIndex = 1003
             })
         })
 
@@ -440,7 +450,7 @@ function OrionLib:MakeNotification(NotificationConfig)
         TweenService:Create(NotificationFrame.Content, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {TextTransparency = 0.5}):Play()
         wait(0.05)
 
-        NotificationFrame:TweenPosition(UDim2.new(1, 20, 0, 0),'In','Quint',0.8,true)
+        NotificationFrame:TweenPosition(UDim2.new(1, 20, 0, 0), 'In','Quint', 0.8, true)
         wait(1.35)
         NotificationFrame:Destroy()
     end)
