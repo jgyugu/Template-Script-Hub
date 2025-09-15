@@ -387,35 +387,36 @@ local NotificationHolder = SetProps(SetChildren(MakeElement("TFrame"), {
 
 function OrionLib:MakeNotification(NotificationConfig)
     spawn(function()
+        NotificationConfig.Name = NotificationConfig.Name or "Notification"
+        NotificationConfig.Content = NotificationConfig.Content or "Test"
+        NotificationConfig.Image = NotificationConfig.Image or "rbxassetid://4384403532"
+        NotificationConfig.Time = NotificationConfig.Time or 15
+
         local NotificationParent = SetProps(MakeElement("TFrame"), {
             Size = UDim2.new(1, 0, 0, 0),
             AutomaticSize = Enum.AutomaticSize.Y,
-            Parent = NotificationHolder,
-            ZIndex = 1000 -- 提高层级
+            Parent = NotificationHolder
         })
-        
+
         local NotificationFrame = SetChildren(SetProps(MakeElement("RoundFrame", Color3.fromRGB(25, 25, 25), 0, 10), {
             Parent = NotificationParent,
             Size = UDim2.new(1, 0, 0, 0),
             Position = UDim2.new(1, -55, 0, 0),
             BackgroundTransparency = 0,
-            AutomaticSize = Enum.AutomaticSize.Y,
-            ZIndex = 1001 -- 比父级更高
+            AutomaticSize = Enum.AutomaticSize.Y
         }), {
-            SetProps(MakeElement("Stroke", Color3.fromRGB(93, 93, 93), 1.2), {ZIndex = 1002}),
+            MakeElement("Stroke", Color3.fromRGB(93, 93, 93), 1.2),
             MakeElement("Padding", 12, 12, 12, 12),
             SetProps(MakeElement("Image", NotificationConfig.Image), {
                 Size = UDim2.new(0, 20, 0, 20),
                 ImageColor3 = Color3.fromRGB(240, 240, 240),
-                Name = "Icon",
-                ZIndex = 1002
+                Name = "Icon"
             }),
             SetProps(MakeElement("Label", NotificationConfig.Name, 15), {
                 Size = UDim2.new(1, -30, 0, 20),
                 Position = UDim2.new(0, 30, 0, 0),
                 Font = Enum.Font.GothamBold,
-                Name = "Title",
-                ZIndex = 1002
+                Name = "Title"
             }),
             SetProps(MakeElement("Label", NotificationConfig.Content, 14), {
                 Size = UDim2.new(1, 0, 0, 0),
@@ -424,8 +425,7 @@ function OrionLib:MakeNotification(NotificationConfig)
                 Name = "Content",
                 AutomaticSize = Enum.AutomaticSize.Y,
                 TextColor3 = Color3.fromRGB(200, 200, 200),
-                TextWrapped = true,
-                ZIndex = 1002
+                TextWrapped = true
             })
         })
 
