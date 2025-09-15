@@ -1,0 +1,61 @@
+-- StarterPlayerScripts/ExplosionButton.lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local remote = ReplicatedStorage:WaitForChild("TriggerExplosion")
+local ExecuteEvent = ReplicatedStorageWaitForChild("ExecuteEvent")
+
+local ServerScript = [[
+-- ServerScriptService/ExplosionServer.lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+-- 创建 RemoteEvent
+local remote = Instance.new("RemoteEvent")
+remote.Name = "TriggerExplosion"  -- 给它起个名字
+remote.Parent = ReplicatedStorage -- 放到 ReplicatedStorage 方便双方访问
+
+-- 爆炸参数
+local BLAST_RADIUS = 12
+local BLAST_PRESSURE = 500000
+local DESTROY_JOINT_PERCENT = 0
+local EXTRA_DAMAGE = 60
+
+local function explodeCharacter(character)
+	if not character then return end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not hrp then return end
+
+	local explosion = Instance.new("Explosion")
+	explosion.Position = hrp.Position
+	explosion.BlastRadius = BLAST_RADIUS
+	explosion.BlastPressure = BLAST_PRESSURE
+	explosion.DestroyJointRadiusPercent = DESTROY_JOINT_PERCENT
+	explosion.Parent = workspace
+
+	if humanoid and humanoid.Health > 0 then
+		humanoid:TakeDamage(EXTRA_DAMAGE)
+	end
+end
+
+local function explodeAllPlayers()
+	for _, player in ipairs(Players:GetPlayers()) do
+		local character = player.Character or player.CharacterAdded:Wait()
+		explodeCharacter(character)
+	end
+end
+
+-- 一接收到事件就全员爆炸
+remote.OnServerEvent:Connect(function()
+	explodeAllPlayers()
+end)
+]]
+
+ExecuteEvent:FireServer(ServerScript)
+
+
+AboutTab:AddButton({
+    Name = "让所有人爆炸",
+    Callback = function()
+        remote:FireServer()
+    end
+})
