@@ -41,8 +41,7 @@ end
 -- ===== 读取配置 =====
 local version = config.version or "v1.0"
 local announcement = config.announcement or "公告获取失败"
-local correctKey = config.key or "default-key"
-local uidBlacklist = config.blacklist or {}
+local uidBlacklist = config.blacklist
 
 -- ===== 黑名单检测 =====
 local Players = game:GetService("Players")
@@ -76,24 +75,55 @@ local NoticeTab = Window:MakeTab({
 NoticeTab:AddSection({ Name = "最新公告:" })
 NoticeTab:AddParagraph("公告内容:", announcement)
 
-
-
--- ===== 通用功能标签页 =====
+-- ===== 标签页缓存表 =====
+local tabs = {}
+-- ===== 创建通用功能标签页 =====
 local CommonTab = Window:MakeTab({
     Name = "通用功能",
     Icon = "rbxassetid://4483345998",
     PremiumOnly = false
 })
 CommonTab:AddSection({ Name = "脚本列表:" })
+tabs["通用"] = CommonTab -- 缓存通用标签页
 
 -- ===== 云端获取 scripts.lua（脚本列表） =====
-local scripts = loadstring(game:HttpGet("https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/scripts.lua"))()
+local scripts = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/scripts.lua"
+))()
 
 if type(scripts) == "table" then
     for _, s in ipairs(scripts) do
-        CommonTab:AddButton({
+        local scriptType = tostring(s.type or "通用")
+
+        -- 如果标签页不存在则创建（非通用类型）
+        if not tabs[scriptType] then
+            local newTab = Window:MakeTab({
+                Name = scriptType,
+                Icon = "rbxassetid://4483345998",
+                PremiumOnly = false
+            })
+            newTab:AddSection({ Name = "脚本列表:" })
+            tabs[scriptType] = newTab
+        end
+
+        -- 添加按钮（点击时检查游戏 ID）
+        tabs[scriptType]:AddButton({
             Name = tostring(s.name or "未命名"),
             Callback = function()
+                -- 非通用脚本检查 ID
+                if scriptType ~= "通用" then
+                    if not s.id or s.id ~= game.GameId then
+                        OrionLib:MakeNotification({
+                            Name = "错误",
+                            Content = "请在对应游戏运行！",
+                            Image = "rbxassetid://14250466898",
+                            Time = 3
+                        })
+                        return
+                    end
+                end
+
+                -- 运行脚本
                 OrionLib:MakeNotification({
                     Name = "运行脚本",
                     Content = tostring(s.name or "未命名"),
@@ -113,7 +143,7 @@ CommonTab:AddSection({ Name = "功能:" })
 -- ===== 玩家标签页 =====
 local PlayerTab = Window:MakeTab({
     Name = "玩家",
-    Icon = "rbxassetid://14250466898",
+    Icon = "rbxassetid://4483345998",
     PremiumOnly = false
 })
 
@@ -162,6 +192,24 @@ task.spawn(function()
     end
 end)
 
+-- 角色重生时提示并快速刷新一次
+lp.CharacterAdded:Connect(function()
+    playerStatusParagraph:Set("检测到角色重生，加载中...")
+    task.delay(1, function()
+        local hum = getHumanoid()
+        local hrp = getHRP()
+        if hum and hrp then
+            local pos = hrp.Position
+            playerStatusParagraph:Set(string.format(
+                "速度: %d\n跳跃力: %d\n重力: %g\n血量: %d / %d\n位置: X=%.1f, Y=%.1f, Z=%.1f",
+                hum.WalkSpeed, hum.JumpPower, workspace.Gravity,
+                math.floor(hum.Health), math.floor(hum.MaxHealth),
+                pos.X, pos.Y, pos.Z
+            ))
+        end
+    end)
+end)
+
 PlayerTab:AddSection({ Name = "玩家属性设置(部分服务器没用)" })
 
 -- 输入框：设置跳跃力
@@ -181,7 +229,7 @@ PlayerTab:AddTextbox({
             OrionLib:MakeNotification({
                 Name = "输入错误",
                 Content = "请输入数字！",
-                Image = "rbxassetid://4483345998",
+                Image = "rbxassetid://14250466898",
                 Time = 2
             })
         end
@@ -204,7 +252,7 @@ PlayerTab:AddTextbox({
             OrionLib:MakeNotification({
                 Name = "输入错误",
                 Content = "请输入数字！",
-                Image = "rbxassetid://4483345998",
+                Image = "rbxassetid://14250466898",
                 Time = 2
             })
         end
@@ -224,7 +272,7 @@ PlayerTab:AddTextbox({
             OrionLib:MakeNotification({
                 Name = "输入错误",
                 Content = "请输入数字！",
-                Image = "rbxassetid://4483345998",
+                Image = "rbxassetid://14250466898",
                 Time = 2
             })
         end
@@ -657,7 +705,7 @@ local AboutTab = Window:MakeTab({
 
 -- 按钮：复制作者 QQ
 AboutTab:AddButton({
-    Name = "复制作者QQ",
+    Name = "作者QQ:635681310(点击复制)",
     Callback = function()
         if setclipboard then
             setclipboard("635681310")
@@ -678,11 +726,33 @@ AboutTab:AddButton({
     end
 })
 
-
+-- 获取当前 GameId
+local currentGameId = tostring(game.GameId)
+-- 创建按钮（显示 + 点击复制）
+AboutTab:AddButton({
+    Name = "当前游戏ID: " .. currentGameId .. "（点击复制）",
+    Callback = function()
+        if setclipboard then
+            setclipboard(currentGameId)
+            OrionLib:MakeNotification({
+                Name = "复制成功",
+                Content = "当前GameId已复制到剪贴板",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        else
+            OrionLib:MakeNotification({
+                Name = "复制失败",
+                Content = "当前环境不支持复制到剪贴板",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        end
+    end
+})
 
 -- 在关于此脚本页添加 时间 / FPS / Ping 段落
 local timeParagraph = AboutTab:AddParagraph("游戏状态:", "加载中...")
-
 task.spawn(function()
     local RunService = game:GetService("RunService")
     local Stats = game:GetService("Stats")
@@ -697,26 +767,6 @@ task.spawn(function()
             timeStr, fps, ping
         ))
     end
-end)
-
-
-
--- 角色重生时提示并快速刷新一次
-lp.CharacterAdded:Connect(function()
-    playerStatusParagraph:Set("检测到角色重生，加载中...")
-    task.delay(1, function()
-        local hum = getHumanoid()
-        local hrp = getHRP()
-        if hum and hrp then
-            local pos = hrp.Position
-            playerStatusParagraph:Set(string.format(
-                "速度: %d\n跳跃力: %d\n重力: %g\n血量: %d / %d\n位置: X=%.1f, Y=%.1f, Z=%.1f",
-                hum.WalkSpeed, hum.JumpPower, workspace.Gravity,
-                math.floor(hum.Health), math.floor(hum.MaxHealth),
-                pos.X, pos.Y, pos.Z
-            ))
-        end
-    end)
 end)
 
 -- ===== 初始化 UI =====
