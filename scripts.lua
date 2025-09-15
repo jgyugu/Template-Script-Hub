@@ -1,4 +1,4 @@
-local scripts = {
+return {
     {
         name = "飞行脚本",
         url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/fly_Script",
@@ -14,7 +14,5 @@ local scripts = {
         url = "https://占位符",
         type = "力量传奇",
         id = 114514267
-    },
+    }
 }
-
-return scripts
