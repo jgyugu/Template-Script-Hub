@@ -697,6 +697,40 @@ PlayerTab:AddButton({
     end
 })
 
+-- ===== 自毁按钮 =====
+PlayerTab:AddButton({
+    Name = "自毁",
+    Callback = function()
+        local StarterGui = game:GetService("StarterGui")
+        local Players = game:GetService("Players")
+        local lp = Players.LocalPlayer
+
+        -- 创建回调函数
+        local confirmFunc = Instance.new("BindableFunction")
+        function confirmFunc.OnInvoke(choice)
+            if choice == "是" then
+                local char = lp.Character
+                if char then
+                    local hum = char:FindFirstChildOfClass("Humanoid")
+                    if hum then
+                        hum.Health = 0
+                    end
+                end
+            end
+        end
+
+        -- 弹出系统通知
+        StarterGui:SetCore("SendNotification", {
+            Title = "确认自毁？",
+            Text = "你确定要自毁吗？",
+            Duration = 3,
+            Callback = confirmFunc,
+            Button1 = "是",
+            Button2 = "否"
+        })
+    end
+})
+
 -- 创建“关于此脚本”标签页
 local AboutTab = Window:MakeTab({
     Name = "关于此脚本",
@@ -749,6 +783,38 @@ AboutTab:AddButton({
                 Time = 2
             })
         end
+    end
+})
+
+-- ===== 销毁界面按钮 =====
+AboutTab:AddButton({
+    Name = "销毁界面",
+    Callback = function()
+        local StarterGui = game:GetService("StarterGui")
+
+        -- 创建回调函数
+        local confirmFunc = Instance.new("BindableFunction")
+        function confirmFunc.OnInvoke(choice)
+            if choice == "是" then
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Ethan 脚本中心",
+                    Text = "期待您下次使用",
+                    Duration = 2.5
+                })
+                task.wait(1)
+                OrionLib:Destroy()
+            end
+        end
+
+        -- 弹出系统通知
+        StarterGui:SetCore("SendNotification", {
+            Title = "确认？",
+            Text = "你确定要销毁界面吗？",
+            Duration = 3,
+            Callback = confirmFunc,
+            Button1 = "是",
+            Button2 = "否"
+        })
     end
 })
 
