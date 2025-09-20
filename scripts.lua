@@ -8,5 +8,10 @@ return {
         name = "飞车脚本",
         url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/Vehicle_Fly_Script",
         type = "通用"
+    },
+    {
+        name = "假好友",
+        url = "https://raw.githubusercontent.com/jgyugu/Template-Script-Hub/refs/heads/main/NPC",
+        type = "通用"
     }
 }
