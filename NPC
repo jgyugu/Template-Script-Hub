@@ -1,0 +1,504 @@
+-- NPC 系统整合版 by 小唐定制（无动画 & 不强制 R6）
+-- 功能：
+-- 1) 防重复生成/生成防抖/关闭面板同步销毁好友
+-- 2) 随机好友外观+名字（失败回退 BaconNPC）
+-- 3) 生成/删除/跟随 控件 + 固定提示文本
+-- 4) 同义词关键词聊天（英文大小写不敏感）
+-- 5) 自动闲聊：不重复池 + 距离限制 + 含“你”时平滑注视玩家并暂停移动
+-- 6) 移动与避障（Raycast）
+-- 说明：不强制更改模型为 R6；不加载/控制任何动画
+
+if _G.NPC_RUNNING == true then
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "警告!";
+		Text = "请勿重复运行!";
+		Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150"
+	})
+	Duration = 2
+	return
+end
+_G.NPC_RUNNING = true
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local StarterPack = game:GetService("StarterPack")
+local ChatService = game:GetService("Chat")
+
+-- 全局状态
+local currentDisplayName = "BaconNPC"
+local dummy = nil
+local follow = false
+local nextMove = 0
+local isSpawning = false
+local isChatting = false
+
+-- 清理旧 GUI
+if CoreGui:FindFirstChild("DUMMY_GUI") then
+    CoreGui.DUMMY_GUI:Destroy()
+end
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "DUMMY_GUI"
+gui.Parent = CoreGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 260, 0, 255)
+frame.Position = UDim2.new(0.35, 0, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = frame
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -70, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "你的假好友"
+titleLabel.TextColor3 = Color3.new(1,1,1)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextScaled = true
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0, 25, 0, 25)
+closeButton.Position = UDim2.new(1, -30, 0.5, -12)
+closeButton.Text = "X"
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+closeButton.TextColor3 = Color3.new(1,1,1)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextScaled = true
+closeButton.Parent = titleBar
+
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Size = UDim2.new(0, 25, 0, 25)
+minimizeButton.Position = UDim2.new(1, -60, 0.5, -12)
+minimizeButton.Text = "-"
+minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200)
+minimizeButton.TextColor3 = Color3.new(1,1,1)
+minimizeButton.Font = Enum.Font.SourceSansBold
+minimizeButton.TextScaled = true
+minimizeButton.Parent = titleBar
+
+local spawnButton = Instance.new("TextButton")
+spawnButton.Size = UDim2.new(1, -20, 0, 30)
+spawnButton.Position = UDim2.new(0, 10, 0, 45)
+spawnButton.Text = "生成好友"
+spawnButton.BackgroundColor3 = Color3.fromRGB(60, 180, 75)
+spawnButton.TextColor3 = Color3.new(1,1,1)
+spawnButton.Font = Enum.Font.SourceSansBold
+spawnButton.TextScaled = true
+spawnButton.Parent = frame
+
+local textbox = Instance.new("TextBox")
+textbox.Size = UDim2.new(1, -20, 0, 30)
+textbox.Position = UDim2.new(0, 10, 0, 85)
+textbox.PlaceholderText = "和好友聊天..."
+textbox.Text = ""
+textbox.TextScaled = true
+textbox.ClearTextOnFocus = false
+textbox.Parent = frame
+
+local followToggle = Instance.new("TextButton")
+followToggle.Size = UDim2.new(1, -20, 0, 30)
+followToggle.Position = UDim2.new(0, 10, 0, 125)
+followToggle.Text = "跟随：关闭"
+followToggle.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+followToggle.TextColor3 = Color3.new(1,1,1)
+followToggle.Font = Enum.Font.SourceSansBold
+followToggle.TextScaled = true
+followToggle.Parent = frame
+
+local deleteButton = Instance.new("TextButton")
+deleteButton.Size = UDim2.new(1, -20, 0, 30)
+deleteButton.Position = UDim2.new(0, 10, 0, 165)
+deleteButton.Text = "删除好友"
+deleteButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+deleteButton.TextColor3 = Color3.new(1,1,1)
+deleteButton.Font = Enum.Font.SourceSansBold
+deleteButton.TextScaled = true
+deleteButton.Parent = frame
+
+local tipLabel = Instance.new("TextLabel")
+tipLabel.Size = UDim2.new(1, -20, 0, 30)
+tipLabel.Position = UDim2.new(0, 10, 0, 205)
+tipLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+tipLabel.BackgroundTransparency = 0.3
+tipLabel.TextColor3 = Color3.new(1, 1, 1)
+tipLabel.Font = Enum.Font.SourceSansBold
+tipLabel.TextScaled = true
+tipLabel.Text = "提示：点击“生成好友”按钮来创建你的伙伴"
+tipLabel.Parent = frame
+
+local function setTip(text)
+    tipLabel.Text = text
+end
+
+-- 缩小/关闭
+local isMinimized = false
+minimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    for _, child in ipairs(frame:GetChildren()) do
+        if child ~= titleBar then
+            child.Visible = not isMinimized
+        end
+    end
+    frame.Size = isMinimized and UDim2.new(0, 260, 0, 35) or UDim2.new(0, 260, 0, 255)
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    if dummy and dummy.Parent ~= nil then
+        dummy:Destroy()
+        dummy = nil
+    end
+    _G.NPC_RUNNING = false
+    gui:Destroy()
+end)
+
+-- 生成好友（随机好友外观 + 好友名字；失败回退到 Bacon）
+local function createBaconDummy()
+    local userId = 1
+    currentDisplayName = "BaconNPC"
+
+    local success, pages = pcall(function()
+        return Players:GetFriendsAsync(LocalPlayer.UserId)
+    end)
+    if success and pages then
+        local friends = pages:GetCurrentPage()
+        if #friends > 0 then
+            local randomFriend = friends[math.random(1, #friends)]
+            userId = randomFriend.Id
+            currentDisplayName = randomFriend.Username or currentDisplayName
+        end
+    else
+        warn("获取好友列表失败，使用默认 Bacon 模型。")
+    end
+
+    local model = Players:CreateHumanoidModelFromUserId(userId)
+    model.Name = currentDisplayName
+    model.Parent = Workspace
+
+    local root = model:FindFirstChild("HumanoidRootPart")
+    if root and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        root.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(5, 0, 0)
+    end
+
+    -- 可选：给好友一个工具
+    local tool = StarterPack:FindFirstChildOfClass("Tool") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChildOfClass("Tool"))
+    if tool then
+        local cloneTool = tool:Clone()
+        cloneTool.Parent = model
+    end
+
+    return model
+end
+
+-- 死亡反应 + 可选重生
+local function connectDeathEvents(npc)
+    npc:WaitForChild("Humanoid").Died:Connect(function()
+        local chat = Instance.new("BillboardGui")
+        chat.Size = UDim2.new(0, 200, 0, 50)
+        chat.StudsOffset = Vector3.new(0, 3, 0)
+        chat.Adornee = npc:FindFirstChild("Head")
+        chat.AlwaysOnTop = true
+        chat.Parent = npc
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, 0, 1, 0)
+        label.Text = "可恶！！！我死了！！！"
+        label.TextColor3 = Color3.new(1, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.Arcade
+        label.TextScaled = true
+        label.Parent = chat
+
+        task.delay(3, function()
+            if chat and chat.Parent then chat:Destroy() end
+        end)
+
+        task.delay(3, function()
+            if dummy and dummy.Parent then dummy:Destroy() end
+            dummy = createBaconDummy()
+            connectDeathEvents(dummy)
+            setTip("提示：好友已重生")
+        end)
+    end)
+end
+
+-- 生成防抖与防重复
+spawnButton.MouseButton1Click:Connect(function()
+    if isSpawning then
+        setTip("提示：正在生成好友中，请稍候…")
+        return
+    end
+    if dummy and dummy.Parent ~= nil then
+        setTip("提示：已有好友，不能重复生成")
+        return
+    end
+
+    isSpawning = true
+    spawnButton.AutoButtonColor = false
+    spawnButton.Text = "生成中..."
+    spawnButton.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+    setTip("提示：正在生成好友中")
+
+    local ok, result = pcall(createBaconDummy)
+    if ok and result then
+        dummy = result
+        connectDeathEvents(dummy)
+        setTip("提示：已生成好友：" .. (currentDisplayName or "BaconNPC"))
+    else
+        warn("生成好友失败：", result)
+        setTip("提示：生成失败，请稍后重试")
+    end
+
+    spawnButton.Text = "生成好友"
+    spawnButton.AutoButtonColor = true
+    spawnButton.BackgroundColor3 = Color3.fromRGB(60, 180, 75)
+    isSpawning = false
+end)
+
+deleteButton.MouseButton1Click:Connect(function()
+    if dummy and dummy.Parent ~= nil then
+        dummy:Destroy()
+        dummy = nil
+        setTip("提示：好友已删除")
+    else
+        setTip("提示：当前没有好友可删除")
+    end
+end)
+
+followToggle.MouseButton1Click:Connect(function()
+    follow = not follow
+    if follow then
+        followToggle.Text = "跟随：开启"
+        followToggle.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+        setTip("提示：跟随已开启，好友会保持距离跟着你")
+    else
+        followToggle.Text = "跟随：关闭"
+        followToggle.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+        setTip("提示：跟随已关闭")
+    end
+end)
+
+-- 聊天关键词（支持同义词 + 英文大小写不敏感）
+local keywordReplies = {
+    {{"你好", "嗨", "哈喽", "hello"}, "你好啊！很高兴见到你！"},
+    {{"你是谁", "你是誰", "who are you"}, function() return "我是" .. currentDisplayName .. ", 陪你玩的~" end},
+    {{"再见", "bye", "拜拜"}, "再见！希望很快再见到你！"},
+    {{"生气", "愤怒", "火大"}, "哼！我才不生气呢！"},
+    {{"笑", "哈哈", "lol"}, "哈哈哈，你真有趣！"},
+    {{"天气", "天氣", "天气真好"}, "我觉得今天的天气很适合出去走走！"},
+    {{"开心", "高兴", "快乐"}, "看到你我就很开心！"},
+    {{"难过", "伤心", "不开心"}, "别难过，我会一直陪着你。"},
+    {{"累", "疲惫", "困"}, "累了就休息一下吧，我帮你看着周围。"},
+    {{"帮忙", "帮助", "帮我"}, "当然可以！你需要我做什么？"},
+    {{"厉害", "牛", "强"}, "你才厉害呢，我可比不上你！"},
+    {{"无聊", "没事做", "闲的慌"}, "无聊的话，我们可以去冒险呀！"},
+    {{"吃饭", "饿", "晚餐"}, "我最喜欢吃披萨了，你呢？"},
+    {{"睡觉", "困了", "晚安"}, "晚安，做个好梦！"},
+    {{"游戏", "打游戏", "玩游戏"}, "我随时都可以陪你玩游戏！"},
+    {{"唱歌", "歌唱"}, "啦啦啦～我唱得可不一定好听哦。"},
+    {{"跳舞", "舞蹈"}, "好啊！让我给你跳一段。"},
+    {{"谢谢", "多谢", "感谢"}, "不用谢，我们是好朋友嘛！"},
+    {{"朋友", "伙伴", "兄弟"}, "对呀，我们是最好的朋友！"},
+    {{"走吧", "出发", "走"}, "好，跟我来！"},
+    {{"快点", "加速", "快走"}, "好嘞，加速前进！"}
+}
+
+-- 聊天输入处理（同义词 + 英文大小写不敏感）
+textbox.FocusLost:Connect(function(enterPressed)
+    if enterPressed and dummy then
+        local playerText = textbox.Text
+        if playerText ~= "" then
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head") then
+                ChatService:Chat(LocalPlayer.Character.Head, playerText, Enum.ChatColor.White)
+            end
+
+            local playerTextLower = string.lower(playerText)
+            local reply = nil
+            for _, entry in ipairs(keywordReplies) do
+                local synonyms, response = entry[1], entry[2]
+                for _, word in ipairs(synonyms) do
+                    if string.find(playerTextLower, string.lower(word)) then
+                        reply = (type(response) == "function") and response() or response
+                        break
+                    end
+                end
+                if reply then break end
+            end
+
+            if not reply then
+                reply = "你刚才说 '"..playerText.."' 给我听？你真奇怪。"
+            end
+
+            if dummy:FindFirstChild("Head") then
+                ChatService:Chat(dummy.Head, reply, Enum.ChatColor.White)
+            end
+
+            textbox.Text = ""
+            setTip("提示：已发送消息，输入更多和好友聊天吧")
+        else
+            setTip("提示：输入点什么再按回车哦")
+        end
+    end
+end)
+
+-- 自动闲聊文本（不重复池）
+local idleChats = {
+    "今天天气真不错！",
+    "你在忙什么呢？",
+    "我有点无聊了……",
+    "你要不要和我一起去冒险？",
+    "我刚才看到一只很奇怪的动物！",
+    "你听说过隔壁村的传说吗？",
+    "我觉得你挺有意思的。",
+    "刚才差点被一只蝴蝶吓到……别笑我！",
+    "你有没有什么秘密想告诉我？",
+    "我在想，披萨和汉堡哪个更好吃呢？",
+    "要不要比赛跑步？我可不会让着你！",
+    "我梦到自己变成了一只猫，结果被你抱着走了一路。",
+    "你觉得我帅吗？",
+    "我刚才差点踩到香蕉皮！",
+    "如果我会飞，你会跟我一起飞吗？",
+    "我在想，咱们要不要去探险山洞？",
+    "你有没有见过彩虹的尽头？",
+    "我刚才看到天上有颗流星！",
+    "你会魔法吗？我想学一点。",
+    "我觉得我们可以组个队，名字叫‘最强拍档’！",
+    "你笑起来真好看。",
+    "我刚才差点迷路，还好看到你了。",
+    "要不要一起去钓鱼？",
+    "我在想，咱们能不能找到宝藏？",
+    "你会唱歌吗？我可以帮你伴舞。",
+    "我刚才看到一只松鼠偷吃坚果。",
+    "你觉得我聪明吗？",
+    "我在想，咱们要不要去看看海？",
+    "你有没有害怕的东西？我可以保护你。"
+}
+local idlePool = {}
+local function getRandomIdleChat()
+    if #idlePool == 0 then
+        for _, t in ipairs(idleChats) do
+            table.insert(idlePool, t)
+        end
+    end
+    local idx = math.random(1, #idlePool)
+    local chosen = idlePool[idx]
+    table.remove(idlePool, idx)
+    return chosen
+end
+
+-- 闲聊参数
+local idleMinDelay, idleMaxDelay = 30, 50
+local idleChatMaxDistance = 20 -- 超过此距离不闲聊
+
+-- 自动闲聊（距离限制 + “你”时注视 + 暂停移动）
+task.spawn(function()
+    while true do
+        task.wait(math.random(idleMinDelay, idleMaxDelay))
+        if not (dummy and dummy.Parent and dummy:FindFirstChild("Head")) then
+            continue
+        end
+        local playerRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local dummyRoot = dummy:FindFirstChild("HumanoidRootPart")
+        if not (playerRoot and dummyRoot) then
+            continue
+        end
+        local distance = (playerRoot.Position - dummyRoot.Position).Magnitude
+        if distance > idleChatMaxDistance then
+            continue
+        end
+
+        local randomText = getRandomIdleChat()
+
+        if string.find(randomText, "你", 1, true) then
+            isChatting = true
+            local humanoid = dummy:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:Move(Vector3.new(0,0,0), true) -- 停止移动
+            end
+            local lookPos = Vector3.new(playerRoot.Position.X, dummyRoot.Position.Y, playerRoot.Position.Z)
+            local targetCFrame = CFrame.lookAt(dummyRoot.Position, lookPos)
+            for i = 1, 10 do
+                dummyRoot.CFrame = dummyRoot.CFrame:Lerp(targetCFrame, 0.2)
+                task.wait(0.03)
+            end
+        end
+
+        ChatService:Chat(dummy.Head, randomText, Enum.ChatColor.White)
+
+        if isChatting then
+            task.delay(3, function()
+                isChatting = false
+            end)
+        end
+    end
+end)
+
+-- 移动与避障（无动画切换）
+RunService.Heartbeat:Connect(function()
+    if not (dummy and dummy:FindFirstChild("HumanoidRootPart") and dummy:FindFirstChild("Humanoid")) then
+        return
+    end
+
+    local root = dummy.HumanoidRootPart
+    local humanoid = dummy.Humanoid
+    local targetPos
+
+    -- 闲聊中：只注视玩家并保持静止
+    if isChatting then
+        local playerRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if playerRoot then
+            local lookPos = Vector3.new(playerRoot.Position.X, root.Position.Y, playerRoot.Position.Z)
+            local targetCFrame = CFrame.lookAt(root.Position, lookPos)
+            root.CFrame = root.CFrame:Lerp(targetCFrame, 0.15)
+        end
+        humanoid:Move(Vector3.new(0,0,0), true)
+        return
+    end
+
+    -- 跟随 / 闲逛
+    if follow and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local target = LocalPlayer.Character.HumanoidRootPart.Position
+        local distance = (target - root.Position).Magnitude
+        if distance > 100 then
+            root.CFrame = CFrame.new(target + Vector3.new(2, 0, 0))
+        elseif distance > 5 then
+            local direction = (root.Position - target).Unit
+            targetPos = target + direction * 4 -- 保持 4 格距离
+        end
+    else
+        if tick() >= nextMove then
+            nextMove = tick() + math.random(3, 6)
+            targetPos = root.Position + Vector3.new(math.random(-10,10), 0, math.random(-10,10))
+        end
+    end
+
+    if targetPos then
+        humanoid:MoveTo(targetPos)
+
+        -- 仅移动时障碍检测（Raycast）
+        local dir = (targetPos - root.Position)
+        if dir.Magnitude > 0 then
+            local rayParams = RaycastParams.new()
+            rayParams.FilterDescendantsInstances = {dummy}
+            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+            local result = Workspace:Raycast(root.Position, dir.Unit * 3 + Vector3.new(0, -1, 0), rayParams)
+            if result and humanoid.FloorMaterial ~= Enum.Material.Air then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end
+end)
