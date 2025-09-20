@@ -1,3 +1,16 @@
+-- 防重复运行：若已运行则提示并退出
+if _G.FLYV3_RUNNING == true then
+	game:GetService("StarterGui"):SetCore("SendNotification", {
+		Title = "飞行V3";
+		Text = "请勿重复运行!";
+		Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150"
+	})
+	Duration = 2
+	return
+end
+_G.FLYV3_RUNNING = true
+
+--==================== 原脚本 UI ====================--
 local main = Instance.new("ScreenGui")
 local Frame = Instance.new("Frame")
 local up = Instance.new("TextButton")
@@ -129,289 +142,322 @@ mini2.Visible = false
 speeds = 1
 
 local speaker = game:GetService("Players").LocalPlayer
-
-local chr = game.Players.LocalPlayer.Character
+local chr = speaker.Character
 local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
 
 nowe = false
 
-game:GetService("StarterGui"):SetCore("SendNotification", { 
+game:GetService("StarterGui"):SetCore("SendNotification", {
 	Title = "飞行V3";
 	Text = "优化:ethan";
-	Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150"})
-Duration = 5;
+	Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150"
+})
+Duration = 5
 
-Frame.Active = true -- main = gui
+Frame.Active = true
 Frame.Draggable = true
 
-onof.MouseButton1Down:connect(function()
+--==================== 修复核心：统一停飞清理 ====================--
+local tpwalking = false
+local bg -- BodyGyro
+local bv -- BodyVelocity
+local tis -- 上升悬停连接
+local dis -- 下降悬停连接
 
-	if nowe == true then
-		nowe = false
+local function stopFly()
+	-- 先关标志，关循环
+	nowe = false
+	tpwalking = false
 
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,true)
-		speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-	else 
-		nowe = true
+	-- 断开上/下升循环
+	if tis then pcall(function() tis:Disconnect() end) tis = nil end
+	if dis then pcall(function() dis:Disconnect() end) dis = nil end
 
+	local char = speaker.Character
+	if not char then return end
 
+	-- 销毁力学对象，避免残留力
+	if bg and bg.Parent then pcall(function() bg:Destroy() end) end
+	bg = nil
+	if bv and bv.Parent then pcall(function() bv:Destroy() end) end
+	bv = nil
 
-		for i = 1, speeds do
-			spawn(function()
-
-				local hb = game:GetService("RunService").Heartbeat	
-
-
-				tpwalking = true
-				local chr = game.Players.LocalPlayer.Character
-				local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-				while tpwalking and hb:Wait() and chr and hum and hum.Parent do
-					if hum.MoveDirection.Magnitude > 0 then
-						chr:TranslateBy(hum.MoveDirection)
-					end
-				end
-
-			end)
-		end
-		game.Players.LocalPlayer.Character.Animate.Disabled = true
-		local Char = game.Players.LocalPlayer.Character
-		local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
-
-		for i,v in next, Hum:GetPlayingAnimationTracks() do
-			v:AdjustSpeed(0)
-		end
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,false)
-		speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+	-- 解除可能的锚定
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		hrp.Anchored = false
 	end
 
+	-- 恢复动画与状态，交还重力
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	if char:FindFirstChild("Animate") then
+		char.Animate.Disabled = false
+	end
+	if humanoid then
+		humanoid.PlatformStand = false
+		local states = {
+			Enum.HumanoidStateType.Climbing,
+			Enum.HumanoidStateType.FallingDown,
+			Enum.HumanoidStateType.Flying,
+			Enum.HumanoidStateType.Freefall,
+			Enum.HumanoidStateType.GettingUp,
+			Enum.HumanoidStateType.Jumping,
+			Enum.HumanoidStateType.Landed,
+			Enum.HumanoidStateType.Physics,
+			Enum.HumanoidStateType.PlatformStanding,
+			Enum.HumanoidStateType.Ragdoll,
+			Enum.HumanoidStateType.Running,
+			Enum.HumanoidStateType.RunningNoPhysics,
+			Enum.HumanoidStateType.Seated,
+			Enum.HumanoidStateType.StrafingNoPhysics,
+			Enum.HumanoidStateType.Swimming
+		}
+		for _, st in ipairs(states) do
+			pcall(function() humanoid:SetStateEnabled(st, true) end)
+		end
+		-- 先自由落体一帧，再回 Running，避免悬空
+		pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Freefall) end)
+		task.wait()
+		pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Running) end)
+		for _, tr in next, humanoid:GetPlayingAnimationTracks() do
+			pcall(function() tr:AdjustSpeed(1) end)
+		end
+	end
+end
 
+--==================== 开关飞行（修正循环条件与状态） ====================--
+onof.MouseButton1Down:connect(function()
+	if nowe == true then
+		-- 关闭飞行：统一清理
+		stopFly()
+		return
+	else
+		nowe = true
 
+		-- 开启位移线程前，确保旧线程停掉
+		tpwalking = false
+		for i = 1, speeds do
+			spawn(function()
+				local hb = game:GetService("RunService").Heartbeat
+				tpwalking = true
+				local chr_ = speaker.Character
+				local hum_ = chr_ and chr_:FindFirstChildWhichIsA("Humanoid")
+				while tpwalking and hb:Wait() and chr_ and hum_ and hum_.Parent do
+					if hum_.MoveDirection.Magnitude > 0 then
+						chr_:TranslateBy(hum_.MoveDirection)
+					end
+				end
+			end)
+		end
 
-	if game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid").RigType == Enum.HumanoidRigType.R6 then
+		-- 禁用动画并冻结播放速度
+		if speaker.Character and speaker.Character:FindFirstChild("Animate") then
+			speaker.Character.Animate.Disabled = true
+		end
+		local Char = speaker.Character
+		local Hum = Char and (Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController"))
+		if Hum then
+			for _, v in next, Hum:GetPlayingAnimationTracks() do
+				pcall(function() v:AdjustSpeed(0) end)
+			end
+		end
 
+		-- 禁用常见 Humanoid 状态，进入“飞行模式”
+		local H = speaker.Character and speaker.Character:FindFirstChildOfClass("Humanoid")
+		if H then
+			H:SetStateEnabled(Enum.HumanoidStateType.Climbing,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Flying,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.GettingUp,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Jumping,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Landed,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Physics,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Running,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,false)
+			H:SetStateEnabled(Enum.HumanoidStateType.Swimming,false)
+			H:ChangeState(Enum.HumanoidStateType.Swimming)
+		end
+	end
 
+	-- R6 / R15 分支：修正循环条件（用 and），并记录到全局 bg/bv，停飞统一销毁
+	local humanoidLocal = speaker.Character and speaker.Character:FindFirstChildOfClass("Humanoid")
+	if not humanoidLocal then return end
 
-		local plr = game.Players.LocalPlayer
-		local torso = plr.Character.Torso
-		local flying = true
-		local deb = true
+	if humanoidLocal.RigType == Enum.HumanoidRigType.R6 then
+		local plr = speaker
+		local torso = plr.Character and plr.Character:FindFirstChild("Torso")
+		if not torso then return end
+
 		local ctrl = {f = 0, b = 0, l = 0, r = 0}
 		local lastctrl = {f = 0, b = 0, l = 0, r = 0}
 		local maxspeed = 50
-		local speed = 0
+		local speedv = 0
 
-
-		local bg = Instance.new("BodyGyro", torso)
+		bg = Instance.new("BodyGyro", torso)
 		bg.P = 9e4
 		bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
 		bg.cframe = torso.CFrame
-		local bv = Instance.new("BodyVelocity", torso)
+		bv = Instance.new("BodyVelocity", torso)
 		bv.velocity = Vector3.new(0,0.1,0)
 		bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
 		if nowe == true then
 			plr.Character.Humanoid.PlatformStand = true
 		end
-		while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
+
+		while nowe == true and plr.Character.Humanoid.Health > 0 do
 			game:GetService("RunService").RenderStepped:Wait()
 
 			if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-				speed = speed+.5+(speed/maxspeed)
-				if speed > maxspeed then
-					speed = maxspeed
-				end
-			elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
-				speed = speed-1
-				if speed < 0 then
-					speed = 0
-				end
+				speedv = speedv + .5 + (speedv/maxspeed)
+				if speedv > maxspeed then speedv = maxspeed end
+			elseif speedv ~= 0 then
+				speedv = speedv - 1
+				if speedv < 0 then speedv = 0 end
 			end
+
 			if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+				bv.velocity =
+					((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) +
+					((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p)
+					- game.Workspace.CurrentCamera.CoordinateFrame.p)) * speedv
 				lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-			elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+			elseif speedv ~= 0 then
+				bv.velocity =
+					((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) +
+					((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p)
+					- game.Workspace.CurrentCamera.CoordinateFrame.p)) * speedv
 			else
 				bv.velocity = Vector3.new(0,0,0)
 			end
-			--	game.Players.LocalPlayer.Character.Animate.Disabled = true
-			bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
+
+			bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame *
+				CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speedv/maxspeed),0,0)
 		end
-		ctrl = {f = 0, b = 0, l = 0, r = 0}
-		lastctrl = {f = 0, b = 0, l = 0, r = 0}
-		speed = 0
-		bg:Destroy()
-		bv:Destroy()
-		plr.Character.Humanoid.PlatformStand = false
-		game.Players.LocalPlayer.Character.Animate.Disabled = false
-		tpwalking = false
-
-
-
-
 	else
-		local plr = game.Players.LocalPlayer
-		local UpperTorso = plr.Character.UpperTorso
-		local flying = true
-		local deb = true
+		local plr = speaker
+		local UpperTorso = plr.Character and plr.Character:FindFirstChild("UpperTorso")
+		if not UpperTorso then return end
+
 		local ctrl = {f = 0, b = 0, l = 0, r = 0}
 		local lastctrl = {f = 0, b = 0, l = 0, r = 0}
 		local maxspeed = 50
-		local speed = 0
+		local speedv = 0
 
-
-		local bg = Instance.new("BodyGyro", UpperTorso)
+		bg = Instance.new("BodyGyro", UpperTorso)
 		bg.P = 9e4
 		bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
 		bg.cframe = UpperTorso.CFrame
-		local bv = Instance.new("BodyVelocity", UpperTorso)
+		bv = Instance.new("BodyVelocity", UpperTorso)
 		bv.velocity = Vector3.new(0,0.1,0)
 		bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
 		if nowe == true then
 			plr.Character.Humanoid.PlatformStand = true
 		end
-		while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
+
+		while nowe == true and plr.Character.Humanoid.Health > 0 do
 			wait()
 
 			if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-				speed = speed+.5+(speed/maxspeed)
-				if speed > maxspeed then
-					speed = maxspeed
-				end
-			elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
-				speed = speed-1
-				if speed < 0 then
-					speed = 0
-				end
+				speedv = speedv + .5 + (speedv/maxspeed)
+				if speedv > maxspeed then speedv = maxspeed end
+			elseif speedv ~= 0 then
+				speedv = speedv - 1
+				if speedv < 0 then speedv = 0 end
 			end
+
 			if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+				bv.velocity =
+					((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) +
+					((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p)
+					- game.Workspace.CurrentCamera.CoordinateFrame.p)) * speedv
 				lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-			elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
+			elseif speedv ~= 0 then
+				bv.velocity =
+					((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) +
+					((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p)
+					- game.Workspace.CurrentCamera.CoordinateFrame.p)) * speedv
 			else
 				bv.velocity = Vector3.new(0,0,0)
 			end
 
-			bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
+			bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame *
+				CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speedv/maxspeed),0,0)
 		end
-		ctrl = {f = 0, b = 0, l = 0, r = 0}
-		lastctrl = {f = 0, b = 0, l = 0, r = 0}
-		speed = 0
-		bg:Destroy()
-		bv:Destroy()
-		plr.Character.Humanoid.PlatformStand = false
-		game.Players.LocalPlayer.Character.Animate.Disabled = false
-		tpwalking = false
-
-
-
 	end
-
-
-
-
-
 end)
 
+--==================== 上升/下降循环：加入 nowe 判定，停飞时断开 ====================--
 local tis
-
 up.MouseButton1Down:connect(function()
 	tis = up.MouseEnter:connect(function()
-		while tis do
+		while tis and nowe do
 			wait()
-			game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,1,0)
+			local ch = speaker.Character
+			if not (ch and ch:FindFirstChild("HumanoidRootPart")) then break end
+			ch.HumanoidRootPart.CFrame = ch.HumanoidRootPart.CFrame * CFrame.new(0,1,0)
 		end
 	end)
 end)
-
 up.MouseLeave:connect(function()
-	if tis then
-		tis:Disconnect()
-		tis = nil
-	end
+	if tis then pcall(function() tis:Disconnect() end) tis = nil end
 end)
 
 local dis
-
 down.MouseButton1Down:connect(function()
 	dis = down.MouseEnter:connect(function()
-		while dis do
+		while dis and nowe do
 			wait()
-			game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,-1,0)
+			local ch = speaker.Character
+			if not (ch and ch:FindFirstChild("HumanoidRootPart")) then break end
+			ch.HumanoidRootPart.CFrame = ch.HumanoidRootPart.CFrame * CFrame.new(0,-1,0)
 		end
 	end)
 end)
-
 down.MouseLeave:connect(function()
-	if dis then
-		dis:Disconnect()
-		dis = nil
+	if dis then pcall(function() dis:Disconnect() end) dis = nil end
+end)
+
+--==================== 重生时恢复 ====================--
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(char)
+	wait(0.7)
+	stopFly()
+	if char:FindFirstChildOfClass("Humanoid") then
+		char.Humanoid.PlatformStand = false
+	end
+	if char:FindFirstChild("Animate") then
+		char.Animate.Disabled = false
 	end
 end)
 
-
-game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(char)
-	wait(0.7)
-	game.Players.LocalPlayer.Character.Humanoid.PlatformStand = false
-	game.Players.LocalPlayer.Character.Animate.Disabled = false
-
-end)
-
-
+--==================== 速度调节：重启位移线程前先停旧线程 ====================--
 plus.MouseButton1Down:connect(function()
 	speeds = speeds + 1
 	speed.Text = speeds
 	if nowe == true then
-
-
 		tpwalking = false
 		for i = 1, speeds do
 			spawn(function()
-
-				local hb = game:GetService("RunService").Heartbeat	
-
-
+				local hb = game:GetService("RunService").Heartbeat
 				tpwalking = true
-				local chr = game.Players.LocalPlayer.Character
-				local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-				while tpwalking and hb:Wait() and chr and hum and hum.Parent do
-					if hum.MoveDirection.Magnitude > 0 then
-						chr:TranslateBy(hum.MoveDirection)
+				local chr_ = speaker.Character
+				local hum_ = chr_ and chr_:FindFirstChildWhichIsA("Humanoid")
+				while tpwalking and hb:Wait() and chr_ and hum_ and hum_.Parent do
+					if hum_.MoveDirection.Magnitude > 0 then
+						chr_:TranslateBy(hum_.MoveDirection)
 					end
 				end
-
 			end)
 		end
 	end
 end)
+
 mine.MouseButton1Down:connect(function()
 	if speeds == 1 then
 		speed.Text = 'cannot be less than 1'
@@ -424,26 +470,26 @@ mine.MouseButton1Down:connect(function()
 			tpwalking = false
 			for i = 1, speeds do
 				spawn(function()
-
-					local hb = game:GetService("RunService").Heartbeat	
-
-
+					local hb = game:GetService("RunService").Heartbeat
 					tpwalking = true
-					local chr = game.Players.LocalPlayer.Character
-					local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-					while tpwalking and hb:Wait() and chr and hum and hum.Parent do
-						if hum.MoveDirection.Magnitude > 0 then
-							chr:TranslateBy(hum.MoveDirection)
+					local chr_ = speaker.Character
+					local hum_ = chr_ and chr_:FindFirstChildWhichIsA("Humanoid")
+					while tpwalking and hb:Wait() and chr_ and hum_ and hum_.Parent do
+						if hum_.MoveDirection.Magnitude > 0 then
+							chr_:TranslateBy(hum_.MoveDirection)
 						end
 					end
-
 				end)
 			end
 		end
 	end
 end)
 
+--==================== 关闭/最小化 ====================--
 closebutton.MouseButton1Click:Connect(function()
+	-- 关闭前停飞清理 + 允许再次运行
+	stopFly()
+	_G.FLYV3_RUNNING = false
 	main:Destroy()
 end)
 
@@ -469,6 +515,6 @@ mini2.MouseButton1Click:Connect(function()
 	mine.Visible = true
 	mini.Visible = true
 	mini2.Visible = false
-	main.Frame.BackgroundTransparency = 0 
+	main.Frame.BackgroundTransparency = 0
 	closebutton.Position =  UDim2.new(0, 0, -1, 27)
 end)
