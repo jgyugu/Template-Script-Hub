@@ -138,7 +138,6 @@ else
     CommonTab:AddParagraph("警告", "云端获取脚本失败")
 end
 
-
 CommonTab:AddSection({ Name = "功能:" })
 
 -- ===== 玩家标签页 =====
@@ -148,7 +147,44 @@ local PlayerTab = Window:MakeTab({
     PremiumOnly = false
 })
 
--- 玩家状态 Paragraph（实时刷新） → 移到关于此脚本标签页
+-- 状态/连接/资源跟踪，用于销毁时清理
+local infiniteJumpConnection
+local noclipConnection
+local airwalkPart
+local airwalkConnection
+local airwalkCharAddedConn
+local visionLoop = nil
+local highlightFolder = Instance.new("Folder")
+highlightFolder.Name = "ESP_Highlights"
+highlightFolder.Parent = game:GetService("CoreGui")
+local espConnections = {} -- { PlayerAdded = conn }
+local espCharacterAddedConnections = {} -- 每个玩家的 CharacterAdded 连接
+local tpConnection
+local dropdownPlayerAddedConn
+local dropdownPlayerRemovingConn
+local statusCharAddedConn
+local statusLoopRunning = true
+local aboutLoopRunning = true
+
+-- ===== 新增：玩家属性循环保持（速度/跳跃力） =====
+local attrLoopConn
+local targetWalkSpeed = nil
+local targetJumpPower = nil
+
+attrLoopConn = game:GetService("RunService").RenderStepped:Connect(function()
+    local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        if targetWalkSpeed then
+            hum.WalkSpeed = targetWalkSpeed
+        end
+        if targetJumpPower then
+            hum.UseJumpPower = true
+            hum.JumpPower = targetJumpPower
+        end
+    end
+end)
+
+-- 玩家状态 Paragraph（实时刷新） 
 local playerStatusParagraph = PlayerTab:AddParagraph("玩家状态:", "加载中...")
 
 -- 辅助：获取玩家核心对象
@@ -165,7 +201,7 @@ end
 
 -- 实时刷新玩家状态
 task.spawn(function()
-    while task.wait(0.5) do
+    while statusLoopRunning and task.wait(0.5) do
         local hum = getHumanoid()
         local hrp = getHRP()
 
@@ -194,7 +230,7 @@ task.spawn(function()
 end)
 
 -- 角色重生时提示并快速刷新一次
-lp.CharacterAdded:Connect(function()
+statusCharAddedConn = lp.CharacterAdded:Connect(function()
     playerStatusParagraph:Set("检测到角色重生，加载中...")
     task.delay(1, function()
         local hum = getHumanoid()
@@ -213,7 +249,7 @@ end)
 
 PlayerTab:AddSection({ Name = "玩家属性设置(部分服务器没用)" })
 
--- 输入框：设置跳跃力
+-- 输入框：设置跳跃力（循环保持）
 PlayerTab:AddTextbox({
     Name = "设置跳跃",
     Default = "",
@@ -221,6 +257,7 @@ PlayerTab:AddTextbox({
     Callback = function(Value)
         local num = tonumber(Value)
         if num then
+            targetJumpPower = num
             local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
             if hum then
                 hum.UseJumpPower = true
@@ -237,7 +274,7 @@ PlayerTab:AddTextbox({
     end
 })
 
--- 输入框：设置移动速度
+-- 输入框：设置移动速度（循环保持）
 PlayerTab:AddTextbox({
     Name = "设置速度",
     Default = "",
@@ -245,6 +282,7 @@ PlayerTab:AddTextbox({
     Callback = function(Value)
         local num = tonumber(Value)
         if num then
+            targetWalkSpeed = num
             local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
             if hum then
                 hum.WalkSpeed = num
@@ -280,11 +318,13 @@ PlayerTab:AddTextbox({
     end
 })
 
--- 按钮：恢复默认值
+-- 按钮：恢复默认值（并停止循环保持）
 PlayerTab:AddButton({
     Name = "恢复默认 重力/速度/跳跃力",
     Callback = function()
         workspace.Gravity = 196.2
+        targetWalkSpeed = nil
+        targetJumpPower = nil
         local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
         if hum then
             hum.WalkSpeed = 16
@@ -299,9 +339,10 @@ PlayerTab:AddButton({
         })
     end
 })
+
 PlayerTab:AddSection({ Name = "玩家功能类:" })
+
 -- 开关：无限跳
-local infiniteJumpConnection
 CommonTab:AddToggle({
     Name = "开启无限跳",
     Default = false,
@@ -323,7 +364,6 @@ CommonTab:AddToggle({
 })
 
 -- 开关：穿墙功能
-local noclipConnection
 CommonTab:AddToggle({
     Name = "开启穿墙",
     Default = false,
@@ -355,8 +395,6 @@ CommonTab:AddToggle({
 })
 
 -- 开关：踏空而行
-local airwalkPart
-local airwalkConnection
 local lastY = nil -- 记录平台当前高度
 local tolerance = 0.4 -- 容差，允许下沉的距离（studs）
 
@@ -431,7 +469,11 @@ CommonTab:AddToggle({
         if state then
             startAirwalk()
             -- 重生后继续运行，不销毁
-            lp.CharacterAdded:Connect(function()
+            if airwalkCharAddedConn then
+                airwalkCharAddedConn:Disconnect()
+                airwalkCharAddedConn = nil
+            end
+            airwalkCharAddedConn = lp.CharacterAdded:Connect(function()
                 task.wait(1)
                 startAirwalk()
             end)
@@ -440,10 +482,15 @@ CommonTab:AddToggle({
                 airwalkConnection:Disconnect()
                 airwalkConnection = nil
             end
+            if airwalkCharAddedConn then
+                airwalkCharAddedConn:Disconnect()
+                airwalkCharAddedConn = nil
+            end
             destroyAirwalkPart() -- 关掉时才清理
         end
     end
 })
+
 -- ===== 一键视觉增强（夜视 + 去雾） =====
 local lighting = game:GetService("Lighting")
 
@@ -455,21 +502,28 @@ local oldFogEnd = lighting.FogEnd
 local oldFogStart = lighting.FogStart
 local oldFogColor = lighting.FogColor
 
+-- 控制循环的变量
 CommonTab:AddToggle({
     Name = "一键视觉增强（夜视+去雾）",
     Default = false,
     Callback = function(state)
         if state then
-            -- 开启夜视
-            lighting.Brightness = 5
-            lighting.Ambient = Color3.new(1, 1, 1)
-            lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-            -- 去雾
-            lighting.FogEnd = 1e6
-            lighting.FogStart = 0
-            lighting.FogColor = Color3.fromRGB(255, 255, 255)
+            -- 开启循环刷新
+            if visionLoop then visionLoop:Disconnect() end
+            visionLoop = game:GetService("RunService").RenderStepped:Connect(function()
+                lighting.Brightness = 5
+                lighting.Ambient = Color3.new(1, 1, 1)
+                lighting.OutdoorAmbient = Color3.new(1, 1, 1)
+                lighting.FogEnd = 1e6
+                lighting.FogStart = 0
+                lighting.FogColor = Color3.fromRGB(255, 255, 255)
+            end)
         else
-            -- 恢复原设置
+            -- 停止循环并恢复原设置
+            if visionLoop then
+                visionLoop:Disconnect()
+                visionLoop = nil
+            end
             lighting.Brightness = oldBrightness
             lighting.Ambient = oldAmbient
             lighting.OutdoorAmbient = oldOutdoorAmbient
@@ -481,10 +535,6 @@ CommonTab:AddToggle({
 })
 
 -- 开关：透视玩家（稳固版）
-local highlightFolder = Instance.new("Folder")
-highlightFolder.Name = "ESP_Highlights"
-highlightFolder.Parent = game:GetService("CoreGui")
-
 local function addHighlightToPlayer(player)
     if player ~= lp then
         local function attachHighlight(char)
@@ -508,14 +558,13 @@ local function addHighlightToPlayer(player)
             attachHighlight(player.Character)
         end
 
-        -- 监听角色刷新
-        player.CharacterAdded:Connect(function(char)
+        -- 监听角色刷新（存储以便清理）
+        local c = player.CharacterAdded:Connect(function(char)
             attachHighlight(char)
         end)
+        espCharacterAddedConnections[player] = c
     end
 end
-
-local espConnections = {}
 
 PlayerTab:AddToggle({
     Name = "透视玩家",
@@ -541,14 +590,22 @@ PlayerTab:AddToggle({
                 espConnections.PlayerAdded:Disconnect()
                 espConnections.PlayerAdded = nil
             end
+            -- 断开已有玩家的 CharacterAdded 监听
+            for plr, conn in pairs(espCharacterAddedConnections) do
+                if conn then conn:Disconnect() end
+                espCharacterAddedConnections[plr] = nil
+            end
         end
     end
 })
 
--- ===== 传送到玩家背后功能（带碰撞关闭） =====
+-- ===== 传送到玩家（多位面：背后/正对面/头上/左边/右边） =====
 local selectedTarget = nil
+local selectedMode = "背后"
+local H_DIST = 4
+local EXTRA_Y = 1
 
--- 获取玩家列表（排除自己）
+-- 获取玩家列表
 local function getPlayerList()
     local names = {}
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -556,10 +613,11 @@ local function getPlayerList()
             table.insert(names, plr.Name)
         end
     end
+    table.sort(names)
     return names
 end
 
--- 下拉列表：选择传送目标玩家
+-- 下拉列表：选择目标
 local tpDropdown = PlayerTab:AddDropdown({
     Name = "选择传送目标玩家",
     Default = "未选择",
@@ -575,13 +633,23 @@ local tpDropdown = PlayerTab:AddDropdown({
     end
 })
 
--- 更新下拉列表
-Players.PlayerAdded:Connect(function(plr)
+-- 下拉列表：选择位置
+local modeDropdown = PlayerTab:AddDropdown({
+    Name = "选择传送位置",
+    Default = "背后",
+    Options = {"背后","正对面","头上","左边","右边"},
+    Callback = function(value)
+        selectedMode = value
+    end
+})
+
+-- 玩家列表动态刷新
+dropdownPlayerAddedConn = Players.PlayerAdded:Connect(function(plr)
     if plr ~= lp then
         tpDropdown:Refresh(getPlayerList(), true)
     end
 end)
-Players.PlayerRemoving:Connect(function(plr)
+dropdownPlayerRemovingConn = Players.PlayerRemoving:Connect(function(plr)
     if plr ~= lp then
         tpDropdown:Refresh(getPlayerList(), true)
         if plr.Name == selectedTarget then
@@ -590,7 +658,7 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
--- 辅助函数：设置本地玩家碰撞
+-- 辅助：设置本地玩家碰撞
 local function setLocalCollision(state)
     if lp.Character then
         for _, part in ipairs(lp.Character:GetDescendants()) do
@@ -601,39 +669,62 @@ local function setLocalCollision(state)
     end
 end
 
--- 开关：持续传送到玩家背后
-local tpConnection
+-- 偏移计算
+local function getOffsetCFrame(targetHRP)
+    if selectedMode == "背后" then
+        return CFrame.new(0, 0, -H_DIST)
+    elseif selectedMode == "正对面" then
+        return CFrame.new(0, 0, H_DIST)
+    elseif selectedMode == "左边" then
+        return CFrame.new(-H_DIST, 0, 0)
+    elseif selectedMode == "右边" then
+        return CFrame.new(H_DIST, 0, 0)
+    elseif selectedMode == "头上" then
+        local targetHum = targetHRP.Parent:FindFirstChildOfClass("Humanoid")
+        local myHum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+        local targetHRPSizeY = targetHRP.Size.Y / 2
+        local myHRP = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        local myHRPSizeY = myHRP and myHRP.Size.Y/2 or 1
+    
+        local targetHeight = (targetHum and targetHum.HipHeight or 2) + targetHRPSizeY
+        local myHeight = (myHum and myHum.HipHeight or 2) + myHRPSizeY
+    
+        local y = targetHeight + myHeight + 1 -- +1 是额外缓冲
+        return CFrame.new(0, y, 0)
+    else
+        return CFrame.new()
+    end
+end
+
+-- 持续传送
 PlayerTab:AddToggle({
-    Name = "持续传送到玩家背后",
+    Name = "持续传送到玩家",
     Default = false,
     Callback = function(state)
+        local myHum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
         if state then
             if not selectedTarget then
                 OrionLib:MakeNotification({
                     Name = "未选择目标",
                     Content = "请先在下拉列表选择一个玩家！",
-                    Image = "rbxassetid://4483345998",
+                    Image = "rbxassetid://14250466898",
                     Time = 2
                 })
                 return
             end
-
-            -- 关闭本地玩家碰撞
             setLocalCollision(false)
-
             tpConnection = game:GetService("RunService").RenderStepped:Connect(function()
                 local targetPlayer = Players:FindFirstChild(selectedTarget)
-                if targetPlayer 
-                and targetPlayer.Character 
-                and targetPlayer.Character:FindFirstChild("HumanoidRootPart") 
-                and lp.Character 
-                and lp.Character:FindFirstChild("HumanoidRootPart") then
-                    
-                    local targetHRP = targetPlayer.Character.HumanoidRootPart
-                    local myHRP = lp.Character.HumanoidRootPart
-
-                    local backOffset = -targetHRP.CFrame.LookVector * 4
-                    myHRP.CFrame = CFrame.new(targetHRP.Position + backOffset, targetHRP.Position)
+                if not (targetPlayer and targetPlayer.Character) then return end
+                local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local myChar = lp.Character
+                local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+                if targetHRP and myHRP then
+                    myHRP.CFrame = targetHRP.CFrame * getOffsetCFrame(targetHRP)
+                    -- 如果是头上模式，设置坐下
+                    if selectedMode == "头上" and myHum then
+                        myHum.Sit = true
+                    end
                 end
             end)
         else
@@ -641,55 +732,158 @@ PlayerTab:AddToggle({
                 tpConnection:Disconnect()
                 tpConnection = nil
             end
-            -- 恢复本地玩家碰撞
             setLocalCollision(true)
+            -- 恢复站立
+            if myHum then
+                myHum.Sit = false
+            end
         end
     end
 })
 
--- 按钮：一次性传送到玩家背后
+-- 一次性传送
 PlayerTab:AddButton({
-    Name = "一次性传送到玩家背后",
+    Name = "一次性传送到玩家",
     Callback = function()
         if not selectedTarget then
             OrionLib:MakeNotification({
                 Name = "未选择目标",
                 Content = "请先在下拉列表选择一个玩家！",
-                Image = "rbxassetid://4483345998",
+                Image = "rbxassetid://14250466898",
                 Time = 2
             })
             return
         end
-
         local targetPlayer = Players:FindFirstChild(selectedTarget)
-        if targetPlayer 
-        and targetPlayer.Character 
-        and targetPlayer.Character:FindFirstChild("HumanoidRootPart") 
-        and lp.Character 
-        and lp.Character:FindFirstChild("HumanoidRootPart") then
-            
-            -- 临时关闭碰撞
-            setLocalCollision(false)
+        if targetPlayer and targetPlayer.Character then
+            local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local myChar = lp.Character
+            local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+            if targetHRP and myHRP then
+                setLocalCollision(false)
+                myHRP.CFrame = targetHRP.CFrame * getOffsetCFrame(targetHRP)
+                setLocalCollision(true)
+                OrionLib:MakeNotification({
+                    Name = "传送成功",
+                    Content = ("已传送到 %s 的 %s"):format(selectedTarget, selectedMode),
+                    Image = "rbxassetid://4483345998",
+                    Time = 2
+                })
+            end
+        end
+    end
+})
 
-            local targetHRP = targetPlayer.Character.HumanoidRootPart
-            local myHRP = lp.Character.HumanoidRootPart
+-- ===== 甩飞玩家（基于物理旋转的碰撞甩飞） =====
+local flingConnection
+local flingCharAddedConn
+local flingAttachment
+local flingConstraint
 
-            local backOffset = -targetHRP.CFrame.LookVector * 4
-            myHRP.CFrame = CFrame.new(targetHRP.Position + backOffset, targetHRP.Position)
+local function stopFling()
+    if flingConnection then
+        flingConnection:Disconnect()
+        flingConnection = nil
+    end
+    if flingCharAddedConn then
+        flingCharAddedConn:Disconnect()
+        flingCharAddedConn = nil
+    end
+    local myChar = lp.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if flingConstraint then
+        flingConstraint:Destroy()
+        flingConstraint = nil
+    end
+    if flingAttachment then
+        flingAttachment:Destroy()
+        flingAttachment = nil
+    end
+    if myHRP then
+        myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        -- 确保碰撞恢复为可碰撞（由其他功能可能改变，这里不强制设置全身）
+        myHRP.CanCollide = true
+    end
+end
 
-            -- 恢复碰撞
-            setLocalCollision(true)
+local function startFling()
+    stopFling()
 
+    local myChar = lp.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+
+    -- 创建附件与角速度约束（新物理组件比 BodyAngularVelocity 更稳定）
+    flingAttachment = Instance.new("Attachment")
+    flingAttachment.Name = "FlingAttachment"
+    flingAttachment.Parent = myHRP
+
+    flingConstraint = Instance.new("AngularVelocity")
+    flingConstraint.Name = "FlingAngular"
+    flingConstraint.Attachment0 = flingAttachment
+    flingConstraint.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
+    flingConstraint.AngularVelocity = Vector3.new(0, 10000, 0) -- 高速旋转
+    flingConstraint.MaxTorque = math.huge
+    flingConstraint.Enabled = true
+    flingConstraint.Parent = myHRP
+
+    -- 确保有碰撞去打到对方
+    for _, part in ipairs(myChar:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+            part.Massless = false
+        end
+    end
+
+    -- 重生时重建甩飞
+    flingCharAddedConn = lp.CharacterAdded:Connect(function()
+        task.wait(1)
+        startFling()
+    end)
+
+    -- 持续靠近目标并保持高速旋转
+    flingConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if not selectedTarget then return end
+        local targetPlayer = Players:FindFirstChild(selectedTarget)
+        if not (targetPlayer and targetPlayer.Character) then return end
+        local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not (myHRP and targetHRP) then return end
+
+        -- 贴近目标（稍微偏移，避免卡进身体中心）
+        local offset = CFrame.new(0, 0, 1.5)
+        myHRP.CFrame = targetHRP.CFrame * offset
+
+        -- 给目标一个向上的线速度冲击（接触时更容易被抛飞）
+        myHRP.AssemblyLinearVelocity = Vector3.new(0, 200, 0)
+    end)
+end
+
+PlayerTab:AddToggle({
+    Name = "甩飞玩家（需选择目标）",
+    Default = false,
+    Callback = function(state)
+        if state then
+            if not selectedTarget then
+                OrionLib:MakeNotification({
+                    Name = "未选择目标",
+                    Content = "请先在上方选择一个目标玩家！",
+                    Image = "rbxassetid://14250466898",
+                    Time = 2
+                })
+                return
+            end
+            startFling()
             OrionLib:MakeNotification({
-                Name = "传送成功",
-                Content = "已传送到 " .. selectedTarget .. " 背后",
+                Name = "甩飞已开启",
+                Content = "正在尝试甩飞：" .. tostring(selectedTarget),
                 Image = "rbxassetid://4483345998",
                 Time = 2
             })
         else
+            stopFling()
             OrionLib:MakeNotification({
-                Name = "传送失败",
-                Content = "目标玩家不可用或未加载角色",
+                Name = "甩飞已关闭",
+                Content = "甩飞功能已停止并清理。",
                 Image = "rbxassetid://4483345998",
                 Time = 2
             })
@@ -786,6 +980,135 @@ AboutTab:AddButton({
     end
 })
 
+-- 在关于此脚本页添加 时间 / FPS / Ping 段落
+local timeParagraph = AboutTab:AddParagraph("游戏状态:", "加载中...")
+task.spawn(function()
+    local RunService = game:GetService("RunService")
+    local Stats = game:GetService("Stats")
+    while aboutLoopRunning and task.wait(1) do
+        local now = os.date("*t")
+        local timeStr = string.format("%04d-%02d-%02d %02d:%02d:%02d",
+            now.year, now.month, now.day, now.hour, now.min, now.sec)
+        local fps = math.floor(1 / RunService.RenderStepped:Wait())
+        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+        timeParagraph:Set(string.format(
+            "时间: %s\nFPS: %d\nPing: %d ms",
+            timeStr, fps, ping
+        ))
+    end
+end)
+
+-- ===== 销毁/清理函数（在销毁 GUI 时调用） =====
+local function cleanupAll()
+    -- 停止状态循环
+    statusLoopRunning = false
+    aboutLoopRunning = false
+
+    -- 断开玩家状态 CharacterAdded
+    if statusCharAddedConn then
+        statusCharAddedConn:Disconnect()
+        statusCharAddedConn = nil
+    end
+
+    -- 无限跳
+    if infiniteJumpConnection then
+        infiniteJumpConnection:Disconnect()
+        infiniteJumpConnection = nil
+    end
+
+    -- 穿墙：恢复碰撞并断开
+    if lp.Character then
+        for _, part in ipairs(lp.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    -- 踏空：断开连接与重生监听并销毁平台
+    if airwalkConnection then
+        airwalkConnection:Disconnect()
+        airwalkConnection = nil
+    end
+    if airwalkCharAddedConn then
+        airwalkCharAddedConn:Disconnect()
+        airwalkCharAddedConn = nil
+    end
+    destroyAirwalkPart()
+
+    -- 视觉增强：断开并恢复原设置
+    if visionLoop then
+        visionLoop:Disconnect()
+        visionLoop = nil
+    end
+    pcall(function()
+        lighting.Brightness = oldBrightness
+        lighting.Ambient = oldAmbient
+        lighting.OutdoorAmbient = oldOutdoorAmbient
+        lighting.FogEnd = oldFogEnd
+        lighting.FogStart = oldFogStart
+        lighting.FogColor = oldFogColor
+    end)
+
+    -- 透视：移除高亮，断开新玩家与角色监听
+    for _, h in ipairs(highlightFolder:GetChildren()) do
+        h:Destroy()
+    end
+    if espConnections.PlayerAdded then
+        espConnections.PlayerAdded:Disconnect()
+        espConnections.PlayerAdded = nil
+    end
+    for plr, conn in pairs(espCharacterAddedConnections) do
+        if conn then conn:Disconnect() end
+        espCharacterAddedConnections[plr] = nil
+    end
+    if highlightFolder and highlightFolder.Parent then
+        highlightFolder:Destroy()
+    end
+
+    -- 传送：断开连接并恢复站立/碰撞
+    if tpConnection then
+        tpConnection:Disconnect()
+        tpConnection = nil
+    end
+    local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.Sit = false
+    end
+    setLocalCollision(true)
+
+    -- 下拉列表刷新监听断开
+    if dropdownPlayerAddedConn then
+        dropdownPlayerAddedConn:Disconnect()
+        dropdownPlayerAddedConn = nil
+    end
+    if dropdownPlayerRemovingConn then
+        dropdownPlayerRemovingConn:Disconnect()
+        dropdownPlayerRemovingConn = nil
+    end
+
+    -- 停止属性保持循环并恢复默认
+    targetWalkSpeed = nil
+    targetJumpPower = nil
+    if attrLoopConn then
+        attrLoopConn:Disconnect()
+        attrLoopConn = nil
+    end
+    workspace.Gravity = 196.2
+    if hum then
+        hum.WalkSpeed = 16
+        hum.UseJumpPower = true
+        hum.JumpPower = 50
+    end
+
+    -- 停止甩飞并清理
+    stopFling()
+end
+
 -- ===== 销毁界面按钮 =====
 AboutTab:AddButton({
     Name = "销毁界面",
@@ -796,6 +1119,9 @@ AboutTab:AddButton({
         local confirmFunc = Instance.new("BindableFunction")
         function confirmFunc.OnInvoke(choice)
             if choice == "是" then
+                -- 清理与恢复
+                pcall(cleanupAll)
+
                 StarterGui:SetCore("SendNotification", {
                     Title = "Ethan 脚本中心",
                     Text = "期待您下次使用",
@@ -817,25 +1143,6 @@ AboutTab:AddButton({
         })
     end
 })
-
--- 在关于此脚本页添加 时间 / FPS / Ping 段落
-local timeParagraph = AboutTab:AddParagraph("游戏状态:", "加载中...")
-task.spawn(function()
-    local RunService = game:GetService("RunService")
-    local Stats = game:GetService("Stats")
-    while task.wait(1) do
-        local now = os.date("*t")
-        local timeStr = string.format("%04d-%02d-%02d %02d:%02d:%02d",
-            now.year, now.month, now.day, now.hour, now.min, now.sec)
-        local fps = math.floor(1 / RunService.RenderStepped:Wait())
-        local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
-        timeParagraph:Set(string.format(
-            "时间: %s\nFPS: %d\nPing: %d ms",
-            timeStr, fps, ping
-        ))
-    end
-end)
-
 
 -- ===== 初始化 UI =====
 OrionLib:Init()
