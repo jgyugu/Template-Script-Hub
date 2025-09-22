@@ -1140,8 +1140,6 @@ local function cleanupAll()
         hum.JumpPower = 50
     end
 
-    -- 停止甩飞并清理
-    stopFling()
 end
 
 -- ===== 销毁界面按钮 =====
