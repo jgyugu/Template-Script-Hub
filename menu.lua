@@ -534,66 +534,217 @@ CommonTab:AddToggle({
     end
 })
 
--- 开关：透视玩家（稳固版）
-local function addHighlightToPlayer(player)
-    if player ~= lp then
-        local function attachHighlight(char)
-            -- 移除旧的
-            local old = highlightFolder:FindFirstChild(player.Name)
-            if old then old:Destroy() end
+-- ===== 透视玩家（高亮 + 名字显示，带距离限制与集中刷新） =====
+-- 依赖：PlayerTab, Players, lp, highlightFolder 已存在
+-- 如未定义 highlightFolder，可启用以下两行：
+-- local highlightFolder = Instance.new("Folder")
+-- highlightFolder.Name = "ESP_Highlights"; highlightFolder.Parent = game:GetService("CoreGui")
 
-            -- 创建新的
-            local highlight = Instance.new("Highlight")
-            highlight.Name = player.Name
-            highlight.Adornee = char
-            highlight.FillColor = Color3.fromRGB(255, 0, 0)
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            highlight.FillTransparency = 0.5
-            highlight.OutlineTransparency = 0
-            highlight.Parent = highlightFolder
-        end
+-- 配置
+local MAX_NAME_DISTANCE = 80 -- 超过这个距离隐藏名字
+local NAME_TAG_SIZE = UDim2.new(0, 120, 0, 22)
+local NAME_OFFSET = Vector3.new(0, 2.6, 0) -- 头顶偏移
+local NAME_TEXT_SIZE = 14
 
-        -- 如果角色已存在，立即绑定
-        if player.Character then
-            attachHighlight(player.Character)
-        end
+-- 状态
+local espConnections = espConnections or {}
+local espCharacterAddedConnections = espCharacterAddedConnections or {}
+local espActive = false
 
-        -- 监听角色刷新（存储以便清理）
-        local c = player.CharacterAdded:Connect(function(char)
-            attachHighlight(char)
-        end)
-        espCharacterAddedConnections[player] = c
+-- 渲染注册表：player -> { highlight, billboard, adorneePart }
+local registry = {}
+
+-- 工具：为玩家角色创建/更新高亮与名字
+local function buildForCharacter(player, char)
+    if player == lp then return end
+    -- 清理旧的
+    local old = highlightFolder:FindFirstChild(player.UserId .. "_ESP")
+    if old then old:Destroy() end
+    registry[player] = nil
+
+    -- 可靠拿取可附着的部位：优先 HRP，其次 Head
+    local adornee = char:FindFirstChild("HumanoidRootPart")
+                    or char:FindFirstChild("Head")
+                    or (char:FindFirstChildWhichIsA("BasePart"))
+
+    if not adornee then
+        return -- 等待 CharacterAdded 下一次回调
     end
+
+    -- Highlight
+    local node = Instance.new("Folder")
+    node.Name = player.UserId .. "_ESP"
+    node.Parent = highlightFolder
+
+    local hl = Instance.new("Highlight")
+    hl.Name = "HL"
+    hl.Adornee = char
+    hl.FillColor = Color3.fromRGB(255, 60, 60)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = 0.5
+    hl.OutlineTransparency = 0
+    hl.Parent = node
+
+    -- 名字牌（挂在 Core 层节点上，使用 Adornee 渲染）
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "NameTag"
+    bb.Adornee = adornee
+    bb.Size = NAME_TAG_SIZE
+    bb.StudsOffset = NAME_OFFSET
+    bb.AlwaysOnTop = true
+    bb.LightInfluence = 0
+    bb.MaxDistance = 0 -- 我们用自定义距离裁剪，不用内置
+    bb.Parent = node
+
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 0.35
+    label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    label.BorderSizePixel = 0
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.Text = player.DisplayName ~= "" and player.DisplayName or player.Name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextStrokeTransparency = 0.1
+    label.Font = Enum.Font.GothamSemibold
+    label.TextSize = NAME_TEXT_SIZE
+    label.Parent = bb
+
+    -- 轻微圆角与描边（可选）
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = label
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = 1
+    stroke.Transparency = 0.5
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Parent = label
+
+    -- 注册
+    registry[player] = {
+        node = node,
+        highlight = hl,
+        billboard = bb,
+        adornee = adornee,
+    }
 end
 
+-- 工具：为玩家建立监听并初始化
+local function attachForPlayer(player)
+    if player == lp then return end
+
+    -- 初始化（若已有角色）
+    if player.Character then
+        buildForCharacter(player, player.Character)
+    end
+
+    -- 角色重生监听
+    if espCharacterAddedConnections[player] then
+        espCharacterAddedConnections[player]:Disconnect()
+        espCharacterAddedConnections[player] = nil
+    end
+    espCharacterAddedConnections[player] = player.CharacterAdded:Connect(function(char)
+        -- 等待关键部件出现（避免“部分玩家无显示”）
+        char:WaitForChild("Humanoid", 5)
+        char:WaitForChild("HumanoidRootPart", 5) -- 有些模型没有也不会错误
+        buildForCharacter(player, char)
+    end)
+end
+
+-- 工具：移除玩家的 ESP
+local function detachForPlayer(player)
+    if espCharacterAddedConnections[player] then
+        espCharacterAddedConnections[player]:Disconnect()
+        espCharacterAddedConnections[player] = nil
+    end
+    if registry[player] and registry[player].node then
+        registry[player].node:Destroy()
+    end
+    registry[player] = nil
+end
+
+-- 集中渲染器：统一做距离裁剪与生存性检测
+local renderConn
+local function startRenderer()
+    if renderConn then renderConn:Disconnect() end
+    renderConn = game:GetService("RunService").RenderStepped:Connect(function()
+        -- 自己的位置
+        local myHRP = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        local myPos = myHRP and myHRP.Position
+        if not myPos then return end
+
+        for plr, rec in pairs(registry) do
+            local alive = plr.Parent == Players
+            local bb = rec and rec.billboard
+            local adornee = rec and rec.adornee
+            if not (alive and bb and adornee and adornee.Parent) then
+                -- 组件无效则尝试卸载
+                detachForPlayer(plr)
+            else
+                local dist = (adornee.Position - myPos).Magnitude
+                -- 名字显示开关
+                bb.Enabled = dist <= MAX_NAME_DISTANCE
+            end
+        end
+    end)
+end
+
+local function stopRenderer()
+    if renderConn then renderConn:Disconnect() end
+    renderConn = nil
+end
+
+-- Toggle：开关透视
 PlayerTab:AddToggle({
-    Name = "透视玩家",
+    Name = "透视玩家（带名字，更小标签+距离裁剪）",
     Default = false,
     Callback = function(state)
+        espActive = state
         if state then
-            -- 给当前所有其他玩家加高亮
+            -- 先清一次场
+            for _, child in ipairs(highlightFolder:GetChildren()) do
+                child:Destroy()
+            end
+            -- 现有玩家
             for _, plr in ipairs(Players:GetPlayers()) do
-                addHighlightToPlayer(plr)
+                attachForPlayer(plr)
             end
-
-            -- 监听新玩家加入
+            -- 新玩家加入
+            if espConnections.PlayerAdded then
+                espConnections.PlayerAdded:Disconnect()
+            end
             espConnections.PlayerAdded = Players.PlayerAdded:Connect(function(plr)
-                addHighlightToPlayer(plr)
+                attachForPlayer(plr)
             end)
-        else
-            -- 关闭透视，移除所有高亮
-            for _, h in ipairs(highlightFolder:GetChildren()) do
-                h:Destroy()
+            -- 玩家离开：清理其节点
+            if espConnections.PlayerRemoving then
+                espConnections.PlayerRemoving:Disconnect()
             end
-            -- 断开监听
+            espConnections.PlayerRemoving = Players.PlayerRemoving:Connect(function(plr)
+                detachForPlayer(plr)
+            end)
+
+            startRenderer()
+        else
+            -- 停止集中渲染
+            stopRenderer()
+            -- 断开全局监听
             if espConnections.PlayerAdded then
                 espConnections.PlayerAdded:Disconnect()
                 espConnections.PlayerAdded = nil
+            end
+            if espConnections.PlayerRemoving then
+                espConnections.PlayerRemoving:Disconnect()
+                espConnections.PlayerRemoving = nil
             end
             -- 断开已有玩家的 CharacterAdded 监听
             for plr, conn in pairs(espCharacterAddedConnections) do
                 if conn then conn:Disconnect() end
                 espCharacterAddedConnections[plr] = nil
+            end
+            -- 清理全部节点与注册表
+            for plr, rec in pairs(registry) do
+                if rec and rec.node then rec.node:Destroy() end
+                registry[plr] = nil
             end
         end
     end
@@ -672,9 +823,9 @@ end
 -- 偏移计算
 local function getOffsetCFrame(targetHRP)
     if selectedMode == "背后" then
-        return CFrame.new(0, 0, -H_DIST)
-    elseif selectedMode == "正对面" then
         return CFrame.new(0, 0, H_DIST)
+    elseif selectedMode == "正对面" then
+        return CFrame.new(0, 0, -H_DIST)
     elseif selectedMode == "左边" then
         return CFrame.new(-H_DIST, 0, 0)
     elseif selectedMode == "右边" then
@@ -774,122 +925,6 @@ PlayerTab:AddButton({
     end
 })
 
--- ===== 甩飞玩家（基于物理旋转的碰撞甩飞） =====
-local flingConnection
-local flingCharAddedConn
-local flingAttachment
-local flingConstraint
-
-local function stopFling()
-    if flingConnection then
-        flingConnection:Disconnect()
-        flingConnection = nil
-    end
-    if flingCharAddedConn then
-        flingCharAddedConn:Disconnect()
-        flingCharAddedConn = nil
-    end
-    local myChar = lp.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if flingConstraint then
-        flingConstraint:Destroy()
-        flingConstraint = nil
-    end
-    if flingAttachment then
-        flingAttachment:Destroy()
-        flingAttachment = nil
-    end
-    if myHRP then
-        myHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        -- 确保碰撞恢复为可碰撞（由其他功能可能改变，这里不强制设置全身）
-        myHRP.CanCollide = true
-    end
-end
-
-local function startFling()
-    stopFling()
-
-    local myChar = lp.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myHRP then return end
-
-    -- 创建附件与角速度约束（新物理组件比 BodyAngularVelocity 更稳定）
-    flingAttachment = Instance.new("Attachment")
-    flingAttachment.Name = "FlingAttachment"
-    flingAttachment.Parent = myHRP
-
-    flingConstraint = Instance.new("AngularVelocity")
-    flingConstraint.Name = "FlingAngular"
-    flingConstraint.Attachment0 = flingAttachment
-    flingConstraint.RelativeTo = Enum.ActuatorRelativeTo.Attachment0
-    flingConstraint.AngularVelocity = Vector3.new(0, 10000, 0) -- 高速旋转
-    flingConstraint.MaxTorque = math.huge
-    flingConstraint.Enabled = true
-    flingConstraint.Parent = myHRP
-
-    -- 确保有碰撞去打到对方
-    for _, part in ipairs(myChar:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = true
-            part.Massless = false
-        end
-    end
-
-    -- 重生时重建甩飞
-    flingCharAddedConn = lp.CharacterAdded:Connect(function()
-        task.wait(1)
-        startFling()
-    end)
-
-    -- 持续靠近目标并保持高速旋转
-    flingConnection = game:GetService("RunService").RenderStepped:Connect(function()
-        if not selectedTarget then return end
-        local targetPlayer = Players:FindFirstChild(selectedTarget)
-        if not (targetPlayer and targetPlayer.Character) then return end
-        local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not (myHRP and targetHRP) then return end
-
-        -- 贴近目标（稍微偏移，避免卡进身体中心）
-        local offset = CFrame.new(0, 0, 1.5)
-        myHRP.CFrame = targetHRP.CFrame * offset
-
-        -- 给目标一个向上的线速度冲击（接触时更容易被抛飞）
-        myHRP.AssemblyLinearVelocity = Vector3.new(0, 200, 0)
-    end)
-end
-
-PlayerTab:AddToggle({
-    Name = "甩飞玩家（需选择目标）",
-    Default = false,
-    Callback = function(state)
-        if state then
-            if not selectedTarget then
-                OrionLib:MakeNotification({
-                    Name = "未选择目标",
-                    Content = "请先在上方选择一个目标玩家！",
-                    Image = "rbxassetid://14250466898",
-                    Time = 2
-                })
-                return
-            end
-            startFling()
-            OrionLib:MakeNotification({
-                Name = "甩飞已开启",
-                Content = "正在尝试甩飞：" .. tostring(selectedTarget),
-                Image = "rbxassetid://4483345998",
-                Time = 2
-            })
-        else
-            stopFling()
-            OrionLib:MakeNotification({
-                Name = "甩飞已关闭",
-                Content = "甩飞功能已停止并清理。",
-                Image = "rbxassetid://4483345998",
-                Time = 2
-            })
-        end
-    end
-})
 
 -- ===== 自毁按钮 =====
 PlayerTab:AddButton({
